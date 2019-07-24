@@ -7,14 +7,15 @@ import com.mrcrayfish.vehicle.client.EntityRaytracer.IEntityRaytraceable;
 import com.mrcrayfish.vehicle.client.EntityRaytracer.RayTracePart;
 import com.mrcrayfish.vehicle.client.EntityRaytracer.RayTraceResultRotated;
 import com.mrcrayfish.vehicle.client.EntityRaytracer.TriangleRayTraceList;
+import com.mrcrayfish.vehicle.common.inventory.IAttachableChest;
+import com.mrcrayfish.vehicle.common.inventory.StorageInventory;
 import com.mrcrayfish.vehicle.entity.EngineType;
 import com.mrcrayfish.vehicle.entity.EntityMotorcycle;
-import com.mrcrayfish.vehicle.entity.IChest;
 import com.mrcrayfish.vehicle.init.ModItems;
 import com.mrcrayfish.vehicle.init.ModSounds;
 import com.mrcrayfish.vehicle.network.PacketHandler;
 import com.mrcrayfish.vehicle.network.message.MessageAttachChest;
-import com.mrcrayfish.vehicle.network.message.MessageVehicleChest;
+import com.mrcrayfish.vehicle.network.message.MessageOpenStorage;
 import com.mrcrayfish.vehicle.util.InventoryUtil;
 import net.minecraft.client.renderer.BufferBuilder;
 import net.minecraft.client.renderer.RenderGlobal;
@@ -23,7 +24,6 @@ import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.item.EntityItem;
 import net.minecraft.init.Blocks;
 import net.minecraft.init.SoundEvents;
-import net.minecraft.inventory.IInventory;
 import net.minecraft.inventory.InventoryBasic;
 import net.minecraft.inventory.InventoryHelper;
 import net.minecraft.inventory.ItemStackHelper;
@@ -51,7 +51,7 @@ import java.util.Map;
 /**
  * Author: MrCrayfish
  */
-public class EntityMoped extends EntityMotorcycle implements IEntityRaytraceable, IChest
+public class EntityMoped extends EntityMotorcycle implements IEntityRaytraceable, IAttachableChest
 {
     private static final DataParameter<Boolean> CHEST = EntityDataManager.createKey(EntityMoped.class, DataSerializers.BOOLEAN);
     private static final RayTracePart CHEST_BOX = new RayTracePart(new AxisAlignedBB(-0.31875, 0.7945, -0.978125, 0.31875, 1.4195, -0.34375));
@@ -67,7 +67,7 @@ public class EntityMoped extends EntityMotorcycle implements IEntityRaytraceable
         }
     }
 
-    private InventoryBasic inventory;
+    private StorageInventory inventory;
 
     /**
      * ItemStack instances used for rendering
@@ -84,9 +84,6 @@ public class EntityMoped extends EntityMotorcycle implements IEntityRaytraceable
         this.setMaxSpeed(12F);
         this.setTurnSensitivity(15);
         this.setMaxTurnAngle(45);
-        this.setHeldOffset(new Vec3d(7D, 2D, 0D));
-        this.setTowBarPosition(new Vec3d(0.0, 0.0, -1.0));
-        this.setTrailerOffset(new Vec3d(0D, -0.03125D, -0.65D));
         this.setFuelCapacity(12000F);
         this.setFuelConsumption(0.9F);
     }
@@ -166,7 +163,7 @@ public class EntityMoped extends EntityMotorcycle implements IEntityRaytraceable
     @Override
     public double getMountedYOffset()
     {
-        return 8.5 * 0.0625;
+        return 8 * 0.0625;
     }
 
     @Override
@@ -223,7 +220,7 @@ public class EntityMoped extends EntityMotorcycle implements IEntityRaytraceable
             RayTracePart partHit = result.getPartHit();
             if(partHit == CHEST_BOX && this.hasChest())
             {
-                PacketHandler.INSTANCE.sendToServer(new MessageVehicleChest(this.getEntityId()));
+                PacketHandler.INSTANCE.sendToServer(new MessageOpenStorage(this.getEntityId()));
                 return true;
             }
             else if(partHit == TRAY_BOX && !this.hasChest())
@@ -276,7 +273,7 @@ public class EntityMoped extends EntityMotorcycle implements IEntityRaytraceable
     private void initInventory()
     {
         InventoryBasic original = inventory;
-        inventory = new InventoryBasic(this.getName(), false, 27);
+        inventory = new StorageInventory(this.getName(), false, 27, this);
         // Copies the inventory if it exists already over to the new instance
         if(original != null)
         {
@@ -294,6 +291,7 @@ public class EntityMoped extends EntityMotorcycle implements IEntityRaytraceable
     @Override
     protected void onVehicleDestroyed(EntityLivingBase entity)
     {
+        super.onVehicleDestroyed(entity);
         if(this.hasChest() && inventory != null)
         {
             InventoryHelper.dropInventoryItems(world, this, inventory);
@@ -302,7 +300,7 @@ public class EntityMoped extends EntityMotorcycle implements IEntityRaytraceable
 
     @Nullable
     @Override
-    public IInventory getChest()
+    public StorageInventory getInventory()
     {
         if(this.hasChest() && inventory == null)
         {

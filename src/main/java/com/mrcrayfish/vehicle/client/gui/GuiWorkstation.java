@@ -2,16 +2,16 @@ package com.mrcrayfish.vehicle.client.gui;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
 import com.mrcrayfish.vehicle.VehicleConfig;
 import com.mrcrayfish.vehicle.common.container.ContainerWorkstation;
 import com.mrcrayfish.vehicle.common.entity.PartPosition;
 import com.mrcrayfish.vehicle.crafting.VehicleRecipes;
-import com.mrcrayfish.vehicle.entity.EngineTier;
-import com.mrcrayfish.vehicle.entity.EngineType;
-import com.mrcrayfish.vehicle.entity.EntityPoweredVehicle;
-import com.mrcrayfish.vehicle.entity.EntityVehicle;
+import com.mrcrayfish.vehicle.entity.*;
+import com.mrcrayfish.vehicle.entity.trailer.*;
 import com.mrcrayfish.vehicle.entity.vehicle.*;
 import com.mrcrayfish.vehicle.item.ItemEngine;
+import com.mrcrayfish.vehicle.item.ItemWheel;
 import com.mrcrayfish.vehicle.network.PacketHandler;
 import com.mrcrayfish.vehicle.network.message.MessageCraftVehicle;
 import com.mrcrayfish.vehicle.tileentity.TileEntityWorkstation;
@@ -25,14 +25,18 @@ import net.minecraft.client.gui.inventory.GuiContainer;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.RenderHelper;
 import net.minecraft.client.renderer.entity.Render;
+import net.minecraft.client.resources.I18n;
 import net.minecraft.init.Items;
 import net.minecraft.init.SoundEvents;
 import net.minecraft.inventory.IInventory;
 import net.minecraft.item.ItemStack;
+import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.network.datasync.EntityDataManager;
 import net.minecraft.util.NonNullList;
 import net.minecraft.util.ResourceLocation;
+import net.minecraft.util.text.TextFormatting;
 import net.minecraft.world.World;
+import net.minecraftforge.common.util.Constants;
 import net.minecraftforge.fml.common.Loader;
 import net.minecraftforge.fml.common.network.simpleimpl.IMessage;
 import net.minecraftforge.fml.common.registry.EntityEntry;
@@ -42,6 +46,7 @@ import java.awt.*;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -71,7 +76,12 @@ public class GuiWorkstation extends GuiContainer
         builder.put(EntitySmartCar.class, new PartPosition(0.0F, 0.0F, -0.2F, 0.0F, 0.0F, 0.0F, 1.35F));
         builder.put(EntitySpeedBoat.class, new PartPosition(0.0F, 0.0F, -0.65F, 0.0F, 0.0F, 0.0F, 1.25F));
         builder.put(EntitySportsPlane.class, new PartPosition(0.0F, 0.0F, 0.35F, 0.0F, 0.0F, 0.0F, 0.85F));
-        builder.put(EntityTrailer.class, new PartPosition(0.0F, 0.0F, -0.15F, 0.0F, 0.0F, 0.0F, 1.35F));
+        builder.put(EntityTractor.class, new PartPosition(0.0F, 0.0F, -0.2F, 0.0F, 0.0F, 0.0F, 1.25F));
+        builder.put(EntityVehicleTrailer.class, new PartPosition(0.0F, 0.0F, -0.15F, 0.0F, 0.0F, 0.0F, 1.35F));
+        builder.put(EntityStorageTrailer.class, new PartPosition(0.0F, 0.0F, -0.15F, 0.0F, 0.0F, 0.0F, 1.35F));
+        builder.put(EntitySeederTrailer.class, new PartPosition(0.0F, 0.0F, -0.15F, 0.0F, 0.0F, 0.0F, 1.35F));
+        builder.put(EntityFertilizerTrailer.class, new PartPosition(0.0F, 0.0F, -0.15F, 0.0F, 0.0F, 0.0F, 1.35F));
+        builder.put(EntityFluidTrailer.class, new PartPosition(0.0F, 0.0F, -0.15F, 0.0F, 0.0F, 0.0F, 1.35F));
 
         if(Loader.isModLoaded("cfm"))
         {
@@ -178,6 +188,30 @@ public class GuiWorkstation extends GuiContainer
                     entityPoweredVehicle.setEngine(false);
                 }
             }
+
+            if(entityPoweredVehicle.canChangeWheels())
+            {
+                ItemStack wheels = workstation.getStackInSlot(2);
+                if(!wheels.isEmpty() && wheels.getItem() instanceof ItemWheel)
+                {
+                    if(wheels.getTagCompound() != null)
+                    {
+                        NBTTagCompound tagCompound = wheels.getTagCompound();
+                        if(tagCompound.hasKey("color", Constants.NBT.TAG_INT))
+                        {
+                            entityPoweredVehicle.setWheelColor(tagCompound.getInteger("color"));
+                        }
+                    }
+                    entityPoweredVehicle.setWheelType(WheelType.values()[wheels.getItemDamage()]);
+                    entityPoweredVehicle.setWheels(true);
+                    entityPoweredVehicle.notifyDataManagerChange(EntityPoweredVehicle.WHEEL_COLOR);
+                }
+                else
+                {
+                    entityPoweredVehicle.setWheels(false);
+                    canCraft = false;
+                }
+            }
         }
         btnCraft.enabled = canCraft;
 
@@ -230,21 +264,9 @@ public class GuiWorkstation extends GuiContainer
     }
 
     @Override
-    protected void actionPerformed(GuiButton button) throws IOException
+    protected void actionPerformed(GuiButton button)
     {
         if(button.id == 1)
-        {
-            if(currentVehicle + 1 >= VEHICLES.size())
-            {
-                this.loadVehicle(0);
-            }
-            else
-            {
-                this.loadVehicle(currentVehicle + 1);
-            }
-            Minecraft.getMinecraft().getSoundHandler().playSound(PositionedSoundRecord.getMasterRecord(SoundEvents.UI_BUTTON_CLICK, 1.0F));
-        }
-        else if(button.id == 2)
         {
             if(currentVehicle - 1 < 0)
             {
@@ -253,6 +275,18 @@ public class GuiWorkstation extends GuiContainer
             else
             {
                 this.loadVehicle(currentVehicle - 1);
+            }
+            Minecraft.getMinecraft().getSoundHandler().playSound(PositionedSoundRecord.getMasterRecord(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+        }
+        else if(button.id == 2)
+        {
+            if(currentVehicle + 1 >= VEHICLES.size())
+            {
+                this.loadVehicle(0);
+            }
+            else
+            {
+                this.loadVehicle(currentVehicle + 1);
             }
             Minecraft.getMinecraft().getSoundHandler().playSound(PositionedSoundRecord.getMasterRecord(SoundEvents.UI_BUTTON_CLICK, 1.0F));
         }
@@ -266,6 +300,7 @@ public class GuiWorkstation extends GuiContainer
                 {
                     IMessage message = new MessageCraftVehicle(registryName.toString(), workstation.getPos());
                     PacketHandler.INSTANCE.sendToServer(message);
+                    //TODO make confirm GUI if engine and wheels are not present.
                 }
             }
         }
@@ -285,6 +320,13 @@ public class GuiWorkstation extends GuiContainer
                 {
                     entryList.forEach(dataEntry -> vehicle.notifyDataManagerChange(dataEntry.getKey()));
                 }
+
+                if(vehicle instanceof EntityPoweredVehicle)
+                {
+                    ((EntityPoweredVehicle) vehicle).setEngine(false);
+                    ((EntityPoweredVehicle) vehicle).setWheels(false);
+                }
+
                 cachedVehicle[index] = vehicle;
             }
         }
@@ -331,6 +373,35 @@ public class GuiWorkstation extends GuiContainer
                 }
             }
         }
+
+        EntityVehicle vehicle = cachedVehicle[currentVehicle];
+        if(vehicle.canBeColored())
+        {
+            this.drawSlotTooltip(Lists.newArrayList(TextFormatting.AQUA + I18n.format("vehicle.tooltip.optional"), TextFormatting.GRAY + I18n.format("vehicle.tooltip.paint_color")), startX, startY, 186, 29, mouseX, mouseY, 0);
+        }
+        else
+        {
+            this.drawSlotTooltip(Lists.newArrayList(I18n.format("vehicle.tooltip.paint_color"), TextFormatting.GRAY + I18n.format("vehicle.tooltip.not_applicable")), startX, startY, 186, 29, mouseX, mouseY, 0);
+        }
+
+        if(vehicle instanceof EntityPoweredVehicle && ((EntityPoweredVehicle) vehicle).getEngineType() != EngineType.NONE)
+        {
+            String engineName = ((EntityPoweredVehicle) vehicle).getEngineType().getEngineName();
+            this.drawSlotTooltip(Lists.newArrayList(TextFormatting.RED + I18n.format("vehicle.tooltip.required"), TextFormatting.GRAY + engineName), startX, startY, 206, 29, mouseX, mouseY, 1);
+        }
+        else
+        {
+            this.drawSlotTooltip(Lists.newArrayList(I18n.format("vehicle.tooltip.engine"), TextFormatting.GRAY + I18n.format("vehicle.tooltip.not_applicable")), startX, startY, 206, 29, mouseX, mouseY, 1);
+        }
+
+        if(vehicle instanceof EntityPoweredVehicle && ((EntityPoweredVehicle) vehicle).canChangeWheels())
+        {
+            this.drawSlotTooltip(Lists.newArrayList(TextFormatting.RED + I18n.format("vehicle.tooltip.required"), TextFormatting.GRAY + I18n.format("vehicle.tooltip.wheels")), startX, startY, 226, 29, mouseX, mouseY, 2);
+        }
+        else
+        {
+            this.drawSlotTooltip(Lists.newArrayList(I18n.format("vehicle.tooltip.wheels"), TextFormatting.GRAY + I18n.format("vehicle.tooltip.not_applicable")), startX, startY, 226, 29, mouseX, mouseY, 2);
+        }
     }
 
     @Override
@@ -354,23 +425,12 @@ public class GuiWorkstation extends GuiContainer
         this.drawTexturedModalRect(startX + 186 + 57 + 23, startY, 220, 54, 3, 208);
         this.drawTexturedModalRect(startX + 186 + 57 + 23 + 3, startY, 236, 54, 20, 208);
 
-        if(workstation.getStackInSlot(0).isEmpty())
-        {
-            this.drawTexturedModalRect(startX + 187, startY + 30, 80, 0, 16, 16);
-        }
-
-        if(!validEngine)
-        {
-            this.drawTexturedModalRect(startX + 206, startY + 29, 80, 16, 18, 18);
-            if(workstation.getStackInSlot(1).isEmpty())
-            {
-                this.drawTexturedModalRect(startX + 207, startY + 30, 112, 0, 16, 16);
-            }
-        }
-        else if(workstation.getStackInSlot(1).isEmpty())
-        {
-            this.drawTexturedModalRect(startX + 207, startY + 30, 96, 0, 16, 16);
-        }
+        /* Slots */
+        this.drawSlot(startX, startY, 186, 29, 80, 0, 0, false, cachedVehicle[currentVehicle].canBeColored());
+        boolean needsEngine = cachedVehicle[currentVehicle] instanceof EntityPoweredVehicle && ((EntityPoweredVehicle) cachedVehicle[currentVehicle]).getEngineType() != EngineType.NONE;
+        this.drawSlot(startX, startY, 206, 29, 80, 16, 1, !validEngine, needsEngine);
+        boolean needsWheels = cachedVehicle[currentVehicle] instanceof EntityPoweredVehicle && ((EntityPoweredVehicle) cachedVehicle[currentVehicle]).canChangeWheels();
+        this.drawSlot(startX, startY, 226, 29, 80, 32, 2, needsWheels && workstation.getStackInSlot(2).isEmpty(), needsWheels);
 
         this.checkBoxMaterials.draw(mc, guiLeft, guiTop);
 
@@ -447,6 +507,34 @@ public class GuiWorkstation extends GuiContainer
                 }
 
                 Minecraft.getMinecraft().getRenderItem().renderItemOverlayIntoGUI(fontRenderer, stack, startX + 186 + 2, startY + i * 19 + 6 + 1 + 57, null);
+            }
+        }
+    }
+
+    private void drawSlot(int startX, int startY, int x, int y, int iconX, int iconY, int slot, boolean required, boolean applicable)
+    {
+        int textureOffset = required ? 18 : 0;
+        this.drawTexturedModalRect(startX + x, startY + y, 128 + textureOffset, 0, 18, 18);
+        if(workstation.getStackInSlot(slot).isEmpty())
+        {
+            if(applicable)
+            {
+                this.drawTexturedModalRect(startX + x + 1, startY + y + 1, iconX + (required ? 16 : 0), iconY, 16, 16);
+            }
+            else
+            {
+                this.drawTexturedModalRect(startX + x + 1, startY + y + 1, iconX + (required ? 16 : 0), 48, 16, 16);
+            }
+        }
+    }
+
+    private void drawSlotTooltip(List<String> text, int startX, int startY, int x, int y, int mouseX, int mouseY, int slot)
+    {
+        if(workstation.getStackInSlot(slot).isEmpty())
+        {
+            if(MouseHelper.isMouseWithin(mouseX, mouseY, startX + x, startY + y, 18, 18))
+            {
+                this.drawHoveringText(text, mouseX, mouseY, this.mc.fontRenderer);
             }
         }
     }

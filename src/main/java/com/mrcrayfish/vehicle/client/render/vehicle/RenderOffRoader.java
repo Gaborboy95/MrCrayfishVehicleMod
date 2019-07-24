@@ -1,7 +1,6 @@
 package com.mrcrayfish.vehicle.client.render.vehicle;
 
-import com.mrcrayfish.vehicle.client.render.AbstractRenderLandVehicle;
-import com.mrcrayfish.vehicle.client.render.Wheel;
+import com.mrcrayfish.vehicle.client.render.AbstractRenderVehicle;
 import com.mrcrayfish.vehicle.entity.vehicle.EntityOffRoader;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.ModelPlayer;
@@ -15,21 +14,12 @@ import java.util.List;
 /**
  * Author: MrCrayfish
  */
-public class RenderOffRoader extends AbstractRenderLandVehicle<EntityOffRoader>
+public class RenderOffRoader extends AbstractRenderVehicle<EntityOffRoader>
 {
-    public RenderOffRoader()
-    {
-        this.setFuelPortPosition(EntityOffRoader.FUEL_PORT_POSITION);
-        this.addWheel(Wheel.Side.LEFT, Wheel.Position.FRONT, 10.0F, 14.5F, 2.25F);
-        this.addWheel(Wheel.Side.RIGHT, Wheel.Position.FRONT, 10.0F, 14.5F, 2.25F);
-        this.addWheel(Wheel.Side.LEFT, Wheel.Position.REAR, 10.0F, -14.5F, 2.25F);
-        this.addWheel(Wheel.Side.RIGHT, Wheel.Position.REAR, 10.0F, -14.5F, 2.25F);
-    }
-
     @Override
     public void render(EntityOffRoader entity, float partialTicks)
     {
-        Minecraft.getMinecraft().getRenderItem().renderItem(entity.body, ItemCameraTransforms.TransformType.NONE);
+        this.renderDamagedPart(entity, entity.body);
 
         //Render the handles bars
         GlStateManager.pushMatrix();
@@ -41,7 +31,7 @@ public class RenderOffRoader extends AbstractRenderLandVehicle<EntityOffRoader>
             GlStateManager.scale(0.75, 0.75, 0.75);
 
             // Rotates the steering wheel based on the wheel angle
-            float wheelAngle = entity.prevWheelAngle + (entity.wheelAngle - entity.prevWheelAngle) * partialTicks;
+            float wheelAngle = entity.prevRenderWheelAngle + (entity.renderWheelAngle - entity.prevRenderWheelAngle) * partialTicks;
             float wheelAngleNormal = wheelAngle / 45F;
             float turnRotation = wheelAngleNormal * 25F;
             GlStateManager.rotate(turnRotation, 0, 1, 0);
@@ -102,7 +92,7 @@ public class RenderOffRoader extends AbstractRenderLandVehicle<EntityOffRoader>
 
         if(entity.getControllingPassenger() == player)
         {
-            float wheelAngle = entity.prevWheelAngle + (entity.wheelAngle - entity.prevWheelAngle) * partialTicks;
+            float wheelAngle = entity.prevRenderWheelAngle + (entity.renderWheelAngle - entity.prevRenderWheelAngle) * partialTicks;
             float wheelAngleNormal = wheelAngle / 45F;
             float turnRotation = wheelAngleNormal * 6F;
             model.bipedRightArm.rotateAngleX = (float) Math.toRadians(-65F - turnRotation);

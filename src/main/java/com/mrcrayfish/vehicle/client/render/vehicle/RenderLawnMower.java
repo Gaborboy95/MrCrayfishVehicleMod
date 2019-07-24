@@ -1,7 +1,6 @@
 package com.mrcrayfish.vehicle.client.render.vehicle;
 
-import com.mrcrayfish.vehicle.client.render.AbstractRenderLandVehicle;
-import com.mrcrayfish.vehicle.client.render.Wheel;
+import com.mrcrayfish.vehicle.client.render.AbstractRenderVehicle;
 import com.mrcrayfish.vehicle.entity.vehicle.EntityLawnMower;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.ModelPlayer;
@@ -12,21 +11,13 @@ import net.minecraft.entity.player.EntityPlayer;
 /**
  * Author: MrCrayfish
  */
-public class RenderLawnMower extends AbstractRenderLandVehicle<EntityLawnMower>
+public class RenderLawnMower extends AbstractRenderVehicle<EntityLawnMower>
 {
-    public RenderLawnMower()
-    {
-        this.addWheel(Wheel.Side.LEFT, Wheel.Position.FRONT, 6.0F, 0.0F, 13.5F, 1.15F);
-        this.addWheel(Wheel.Side.RIGHT, Wheel.Position.FRONT, 6.0F, 0.0F, 13.5F, 1.15F);
-        this.addWheel(Wheel.Side.LEFT, Wheel.Position.REAR, 5.0F, 0.8F, -10.7F, 1.55F);
-        this.addWheel(Wheel.Side.RIGHT, Wheel.Position.REAR, 5.0F, 0.8F, -10.7F, 1.55F);
-    }
-
     @Override
     public void render(EntityLawnMower entity, float partialTicks)
     {
         //Body
-        Minecraft.getMinecraft().getRenderItem().renderItem(entity.body, ItemCameraTransforms.TransformType.NONE);
+        this.renderDamagedPart(entity, entity.body);
 
         //Render the handles bars
         GlStateManager.pushMatrix();
@@ -35,7 +26,7 @@ public class RenderLawnMower extends AbstractRenderLandVehicle<EntityLawnMower>
             GlStateManager.rotate(-45F, 1, 0, 0);
             GlStateManager.scale(0.9, 0.9, 0.9);
 
-            float wheelAngle = entity.prevWheelAngle + (entity.wheelAngle - entity.prevWheelAngle) * partialTicks;
+            float wheelAngle = entity.prevRenderWheelAngle + (entity.renderWheelAngle - entity.prevRenderWheelAngle) * partialTicks;
             float wheelAngleNormal = wheelAngle / 45F;
             float turnRotation = wheelAngleNormal * 25F;
             GlStateManager.rotate(turnRotation, 0, 1, 0);
@@ -48,7 +39,7 @@ public class RenderLawnMower extends AbstractRenderLandVehicle<EntityLawnMower>
     @Override
     public void applyPlayerModel(EntityLawnMower entity, EntityPlayer player, ModelPlayer model, float partialTicks)
     {
-        float wheelAngle = entity.prevWheelAngle + (entity.wheelAngle - entity.prevWheelAngle) * partialTicks;
+        float wheelAngle = entity.prevRenderWheelAngle + (entity.renderWheelAngle - entity.prevRenderWheelAngle) * partialTicks;
         float wheelAngleNormal = wheelAngle / 45F;
         float turnRotation = wheelAngleNormal * 6F;
         model.bipedRightArm.rotateAngleX = (float) Math.toRadians(-55F - turnRotation);

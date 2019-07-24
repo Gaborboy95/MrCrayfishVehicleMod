@@ -1,35 +1,24 @@
 package com.mrcrayfish.vehicle.entity;
 
-import com.mrcrayfish.vehicle.entity.vehicle.EntityTrailer;
-import com.mrcrayfish.vehicle.init.ModItems;
+import com.mrcrayfish.vehicle.VehicleMod;
+import com.mrcrayfish.vehicle.client.render.Wheel;
 import com.mrcrayfish.vehicle.network.PacketHandler;
 import com.mrcrayfish.vehicle.network.message.MessageDrift;
-import net.minecraft.block.Block;
-import net.minecraft.block.material.Material;
-import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityLivingBase;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.item.ItemStack;
 import net.minecraft.network.datasync.DataParameter;
 import net.minecraft.network.datasync.DataSerializers;
 import net.minecraft.network.datasync.EntityDataManager;
-import net.minecraft.util.EnumParticleTypes;
-import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
-import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
 
 /**
  * Author: MrCrayfish
  */
 public abstract class EntityLandVehicle extends EntityPoweredVehicle
 {
-    private static final DataParameter<Boolean> DRIFTING = EntityDataManager.createKey(EntityPoweredVehicle.class, DataSerializers.BOOLEAN);
-    private static final DataParameter<Integer> TRAILER = EntityDataManager.createKey(EntityPoweredVehicle.class, DataSerializers.VARINT);
+    private static final DataParameter<Boolean> DRIFTING = EntityDataManager.createKey(EntityLandVehicle.class, DataSerializers.BOOLEAN);
 
     public float drifting;
     public float additionalYaw;
@@ -39,12 +28,6 @@ public abstract class EntityLandVehicle extends EntityPoweredVehicle
     public float prevFrontWheelRotation;
     public float rearWheelRotation;
     public float prevRearWheelRotation;
-
-    private EntityTrailer trailer = null;
-    private Vec3d towBarVec = Vec3d.ZERO;
-
-    @SideOnly(Side.CLIENT)
-    public ItemStack towBar;
 
     public EntityLandVehicle(World worldIn)
     {
@@ -56,14 +39,13 @@ public abstract class EntityLandVehicle extends EntityPoweredVehicle
     {
         super.entityInit();
         this.dataManager.register(DRIFTING, false);
-        this.dataManager.register(TRAILER, -1);
     }
 
     @Override
-    public void onClientInit()
+    public void onUpdateVehicle()
     {
-        super.onClientInit();
-        towBar = new ItemStack(ModItems.TOW_BAR);
+        super.onUpdateVehicle();
+        this.updateWheels();
     }
 
     @Override
@@ -74,19 +56,6 @@ public abstract class EntityLandVehicle extends EntityPoweredVehicle
         prevRearWheelRotation = rearWheelRotation;
 
         this.updateDrifting();
-        this.updateWheels();
-    }
-
-    @Override
-    public void onUpdateVehicle()
-    {
-        super.onUpdateVehicle();
-
-        if(trailer != null && (trailer.isDead || trailer.getPullingEntity() != this))
-        {
-            trailer = null;
-            dataManager.set(TRAILER, -1);
-        }
     }
 
     @Override
@@ -96,7 +65,7 @@ public abstract class EntityLandVehicle extends EntityPoweredVehicle
         EntityLivingBase entity = (EntityLivingBase) this.getControllingPassenger();
         if(entity != null && entity.equals(Minecraft.getMinecraft().player))
         {
-            boolean drifting = Minecraft.getMinecraft().gameSettings.keyBindJump.isKeyDown();
+            boolean drifting = VehicleMod.proxy.isDrifting();
             if(this.isDrifting() != drifting)
             {
                 this.setDrifting(drifting);
@@ -128,23 +97,40 @@ public abstract class EntityLandVehicle extends EntityPoweredVehicle
         this.vehicleMotionZ = (currentSpeed * f2);
     }
 
+    @Override
+    protected void updateTurning()
+    {
+        this.turnAngle = VehicleMod.proxy.getTargetTurnAngle(this, this.isDrifting());
+        this.wheelAngle = this.turnAngle * Math.max(0.25F, 1.0F - Math.abs(currentSpeed / 30F));
+        this.deltaYaw = this.wheelAngle * (currentSpeed / 30F) / 2F;
+
+        if(world.isRemote)
+        {
+            this.targetWheelAngle = this.isDrifting() ? -35F * (this.turnAngle / (float) this.getMaxTurnAngle()) * this.getNormalSpeed() : this.wheelAngle - 35F * (this.turnAngle / (float) this.getMaxTurnAngle()) * drifting;
+            this.renderWheelAngle = this.renderWheelAngle + (this.targetWheelAngle - this.renderWheelAngle) * (this.isDrifting() ? 0.35F : 0.5F);
+        }
+    }
+
     private void updateDrifting()
     {
         TurnDirection turnDirection = this.getTurnDirection();
-        if(this.getControllingPassenger() != null && this.isDrifting() && turnDirection != TurnDirection.FORWARD)
+        if(this.getControllingPassenger() != null && this.isDrifting())
         {
-            AccelerationDirection acceleration = this.getAcceleration();
-            if(acceleration == AccelerationDirection.FORWARD)
+            if(turnDirection != TurnDirection.FORWARD)
             {
-                this.currentSpeed *= 0.95F;
+                AccelerationDirection acceleration = this.getAcceleration();
+                if(acceleration == AccelerationDirection.FORWARD)
+                {
+                    this.currentSpeed *= 0.975F;
+                }
+                this.drifting = Math.min(1.0F, this.drifting + 0.025F);
             }
-            this.drifting = Math.min(1.0F, this.drifting + (1.0F / 8.0F));
         }
         else
         {
-            this.drifting *= 0.85F;
+            this.drifting *= 0.95F;
         }
-        this.additionalYaw = 35F * (turnAngle / 45F) * drifting;
+        this.additionalYaw = 25F * drifting * (turnAngle / (float) this.getMaxTurnAngle()) * Math.min(this.getActualMaxSpeed(), this.getActualSpeed() * 2F);
 
         //Updates the delta yaw to consider drifting
         this.deltaYaw = this.wheelAngle * (currentSpeed / 30F) / (this.isDrifting() ? 1.5F : 2F);
@@ -152,49 +138,34 @@ public abstract class EntityLandVehicle extends EntityPoweredVehicle
 
     public void updateWheels()
     {
-        float speedPercent = this.getNormalSpeed();
-        AccelerationDirection acceleration = this.getAcceleration();
-        if(this.getControllingPassenger() != null && acceleration == AccelerationDirection.FORWARD)
+        VehicleProperties properties = VehicleProperties.getProperties(this.getClass());
+        double wheelCircumference = 16.0;
+        double vehicleScale = properties.getBodyPosition().getScale();
+        double speed = this.getSpeed();
+
+        Wheel frontWheel = properties.getFirstFrontWheel();
+        if(frontWheel != null)
         {
-            this.rearWheelRotation -= 68F * (1.0 - speedPercent);
+            double frontWheelCircumference = wheelCircumference * vehicleScale * frontWheel.getScaleY();
+            double rotation = (speed * 16) / frontWheelCircumference;
+            this.frontWheelRotation -= rotation * 20F;
         }
-        this.frontWheelRotation -= (68F * speedPercent);
-        this.rearWheelRotation -= (68F * speedPercent);
+
+        Wheel rearWheel = properties.getFirstRearWheel();
+        if(rearWheel != null)
+        {
+            double rearWheelCircumference = wheelCircumference * vehicleScale * rearWheel.getScaleY();
+            double rotation = (speed * 16) / rearWheelCircumference;
+            this.rearWheelRotation -= rotation * 20F;
+        }
     }
 
     @Override
     public void createParticles()
     {
-        if(!this.canDrive())
-            return;
-
-        int x = MathHelper.floor(this.posX);
-        int y = MathHelper.floor(this.posY - 0.2D);
-        int z = MathHelper.floor(this.posZ);
-        BlockPos pos = new BlockPos(x, y, z);
-        IBlockState state = this.world.getBlockState(pos);
-        if(state.getMaterial() != Material.AIR && state.getMaterial().isToolNotRequired())
+        if(this.canDrive())
         {
-            if(this.getAcceleration() == AccelerationDirection.FORWARD)
-            {
-                if(this.isDrifting())
-                {
-                    for(int i = 0; i < 3; i++)
-                    {
-                        this.world.spawnParticle(EnumParticleTypes.BLOCK_CRACK, this.posX + ((double) this.rand.nextFloat() - 0.5D) * (double) this.width, this.getEntityBoundingBox().minY + 0.1D, this.posZ + ((double) this.rand.nextFloat() - 0.5D) * (double) this.width, -this.motionX * 4.0D, 1.5D, -this.motionZ * 4.0D, Block.getStateId(state));
-                    }
-                }
-                else
-                {
-                    this.world.spawnParticle(EnumParticleTypes.BLOCK_CRACK, this.posX + ((double) this.rand.nextFloat() - 0.5D) * (double) this.width, this.getEntityBoundingBox().minY + 0.1D, this.posZ + ((double) this.rand.nextFloat() - 0.5D) * (double) this.width, -this.motionX * 4.0D, 1.5D, -this.motionZ * 4.0D, Block.getStateId(state));
-                }
-            }
-        }
-
-        if(this.shouldShowEngineSmoke() && this.ticksExisted % 2 == 0)
-        {
-            Vec3d smokePosition = this.getEngineSmokePosition().rotateYaw(-(this.rotationYaw - this.additionalYaw) * 0.017453292F);
-            this.world.spawnParticle(EnumParticleTypes.SMOKE_NORMAL, this.posX + smokePosition.x, this.posY + smokePosition.y, this.posZ + smokePosition.z, -this.motionX, 0.0D, -this.motionZ);
+            super.createParticles();
         }
     }
 
@@ -231,62 +202,6 @@ public abstract class EntityLandVehicle extends EntityPoweredVehicle
         return this.dataManager.get(DRIFTING);
     }
 
-    public void setTowBarPosition(Vec3d towBarVec)
-    {
-        this.towBarVec = towBarVec.scale(0.0625);
-    }
-
-    public Vec3d getTowBarVec()
-    {
-        return towBarVec;
-    }
-
-    public boolean canTowTrailer()
-    {
-        return false;
-    }
-
-    public void setTrailer(EntityTrailer trailer)
-    {
-        this.trailer = trailer;
-        trailer.setPullingEntity(this);
-        this.dataManager.set(TRAILER, trailer.getEntityId());
-    }
-
-    public EntityTrailer getTrailer()
-    {
-        return trailer;
-    }
-
-    @Override
-    public void notifyDataManagerChange(DataParameter<?> key)
-    {
-        super.notifyDataManagerChange(key);
-        if(world.isRemote)
-        {
-            if(TRAILER.equals(key))
-            {
-                int entityId = this.dataManager.get(TRAILER);
-                if(entityId != -1)
-                {
-                    Entity entity = world.getEntityByID(this.dataManager.get(TRAILER));
-                    if(entity instanceof EntityTrailer)
-                    {
-                        trailer = (EntityTrailer) entity;
-                    }
-                    else
-                    {
-                        trailer = null;
-                    }
-                }
-                else
-                {
-                    trailer = null;
-                }
-            }
-        }
-    }
-
     @Override
     protected float getModifiedAccelerationSpeed()
     {
@@ -302,5 +217,11 @@ public abstract class EntityLandVehicle extends EntityPoweredVehicle
             }
         }
         return super.getModifiedAccelerationSpeed();
+    }
+
+    @Override
+    public float getModifiedRotationYaw()
+    {
+        return this.rotationYaw - this.additionalYaw;
     }
 }

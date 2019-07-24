@@ -16,7 +16,6 @@ public class ModItems
     public static final Item ATV_HANDLE_BAR;
     public static final Item DUNE_BUGGY_BODY;
     public static final Item DUNE_BUGGY_HANDLE_BAR;
-    public static final Item DUNE_BUGGY_WHEEL;
     public static final Item GO_KART_BODY;
     public static final Item GO_KART_STEERING_WHEEL;
     public static final Item SHOPPING_CART_BODY;
@@ -38,6 +37,7 @@ public class ModItems
     public static final Item SPORTS_PLANE_PROPELLER;
     public static final Item GOLF_CART_BODY;
     public static final Item OFF_ROADER_BODY;
+    public static final Item TRACTOR_BODY;
 
     public static final Item TRAILER_BODY;
     public static final Item TOW_BAR;
@@ -56,6 +56,7 @@ public class ModItems
     public static final Item FUEL_PORT_2_PIPE;
     
     public static final Item WRENCH;
+    public static final Item HAMMER;
     public static final Item KEY;
     public static final Item KEY_PORT;
 
@@ -67,15 +68,14 @@ public class ModItems
     static
     {
         PANEL = new ItemPart("panel").setCreativeTab(VehicleMod.CREATIVE_TAB);
-        WHEEL = new ItemPart("wheel").setCreativeTab(VehicleMod.CREATIVE_TAB);
+        WHEEL = new ItemWheel().setColored();
         ATV_BODY = new ItemPart("atv_body").setColored();
         ATV_HANDLE_BAR = new ItemPart("handle_bar");
         DUNE_BUGGY_BODY = new ItemPart("dune_buggy_body").setColored();
         DUNE_BUGGY_HANDLE_BAR = new ItemPart("dune_buggy_handle_bar");
-        DUNE_BUGGY_WHEEL = new ItemPart("dune_buggy_wheel");
         GO_KART_BODY = new ItemPart("go_kart_body").setColored();
         GO_KART_STEERING_WHEEL = new ItemPart("go_kart_steering_wheel");
-        SHOPPING_CART_BODY = new ItemPart("shopping_cart_body");
+        SHOPPING_CART_BODY = new ItemPart("shopping_cart_body").setColored();
         MINI_BIKE_BODY = new ItemPart("mini_bike_body").setColored();
         MINI_BIKE_HANDLE_BAR = new ItemPart("mini_bike_handle_bar").setColored();
         BUMPER_CAR_BODY = new ItemPart("bumper_car_body").setColored();
@@ -94,6 +94,7 @@ public class ModItems
         SPORTS_PLANE_PROPELLER = new ItemPart("sports_plane_propeller").setColored();
         GOLF_CART_BODY = new ItemPart("golf_cart_body").setColored();
         OFF_ROADER_BODY = new ItemPart("off_roader_body").setColored();
+        TRACTOR_BODY = new ItemPart("tractor_body").setColored();
 
         TRAILER_BODY = new ItemPart("trailer_body").setColored();
         TOW_BAR = new ItemPart("tow_bar");
@@ -111,7 +112,8 @@ public class ModItems
         FUEL_PORT_2_CLOSED = new ItemPart("fuel_port_2_closed");
         FUEL_PORT_2_PIPE = new ItemPart("fuel_port_2_pipe");
 
-        WRENCH = new ItemWrench();
+        WRENCH = new ItemVehicleTool("wrench");
+        HAMMER = new ItemHammer();
         KEY = new ItemKey();
         KEY_PORT = new ItemPart("key_hole").setColored();
 
@@ -131,7 +133,6 @@ public class ModItems
         register(ATV_HANDLE_BAR);
         register(DUNE_BUGGY_BODY);
         register(DUNE_BUGGY_HANDLE_BAR);
-        register(DUNE_BUGGY_WHEEL);
         register(GO_KART_BODY);
         register(GO_KART_STEERING_WHEEL);
         register(SHOPPING_CART_BODY);
@@ -153,6 +154,7 @@ public class ModItems
         register(SPORTS_PLANE_PROPELLER);
         register(GOLF_CART_BODY);
         register(OFF_ROADER_BODY);
+        register(TRACTOR_BODY);
 
         register(TRAILER_BODY);
         register(TOW_BAR);
@@ -168,6 +170,7 @@ public class ModItems
         register(FUEL_PORT_2_PIPE);
 
         register(WRENCH);
+        register(HAMMER);
         register(KEY);
         register(KEY_PORT);
 

@@ -2,10 +2,12 @@ package com.mrcrayfish.vehicle.block;
 
 import com.mrcrayfish.vehicle.VehicleMod;
 import com.mrcrayfish.vehicle.tileentity.TileEntityFluidMixer;
+import com.mrcrayfish.vehicle.tileentity.TileEntitySynced;
 import net.minecraft.block.material.Material;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.entity.item.EntityItem;
 import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.init.Items;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
@@ -17,6 +19,7 @@ import net.minecraft.world.World;
 import net.minecraftforge.fluids.FluidUtil;
 
 import javax.annotation.Nullable;
+import java.util.Random;
 
 /**
  * Author: MrCrayfish
@@ -39,11 +42,18 @@ public class BlockFluidMixer extends BlockRotatedObject
                 TileEntity tileEntity = worldIn.getTileEntity(pos);
                 if(tileEntity instanceof TileEntityFluidMixer)
                 {
+                    ((TileEntitySynced)tileEntity).syncToClient();
                     playerIn.openGui(VehicleMod.instance, 0, worldIn, pos.getX(), pos.getY(), pos.getZ());
                 }
             }
         }
         return true;
+    }
+
+    @Override
+    public Item getItemDropped(IBlockState state, Random rand, int fortune)
+    {
+        return Items.AIR;
     }
 
     @Override
@@ -69,7 +79,6 @@ public class BlockFluidMixer extends BlockRotatedObject
                 compound.setTag("BlockEntityTag", tileEntityTag);
 
                 ItemStack drop = new ItemStack(Item.getItemFromBlock(this));
-                ;
                 drop.setTagCompound(compound);
                 if(tileEntityFluidMixer.hasCustomName())
                 {

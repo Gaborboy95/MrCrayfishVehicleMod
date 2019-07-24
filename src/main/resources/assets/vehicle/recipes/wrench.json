@@ -1,17 +1,13 @@
 {
     "type": "minecraft:crafting_shaped",
     "pattern": [
-        "IDI",
+        "I I",
         " I ",
         " C "
     ],
     "key": {
         "I": {
             "item": "minecraft:iron_ingot"
-        },
-        "D": {
-            "item": "minecraft:dye",
-            "data": 1
         },
         "C": {
             "item": "minecraft:concrete",

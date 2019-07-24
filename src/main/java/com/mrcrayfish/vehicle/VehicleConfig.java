@@ -30,6 +30,36 @@ public class VehicleConfig
         @Config.Comment("If true, vehicles will require fuel for them to be driven.")
         @Config.LangKey(Reference.MOD_ID + ".config.server.fuel_enabled")
         public boolean fuelEnabled = true;
+
+        @Config.Name("Vehicle Damage")
+        @Config.Comment("If true, vehicles will take damage.")
+        @Config.LangKey(Reference.MOD_ID + ".config.server.vehicle_damage")
+        public boolean vehicleDamage = true;
+
+        @Config.Name("Trailer Detach Distance")
+        @Config.Comment("The distance threshold before the trailer detaches from a vehicle")
+        @Config.LangKey(Reference.MOD_ID + ".config.server.trailer_detach_threshold")
+        public double trailerDetachThreshold = 6.0;
+
+        @Config.Name("Trailer Sync Cooldown")
+        @Config.Comment("The amount of ticks to wait before syncing data to clients about the trailer connection. This is important for smooth trailer movement on client side.")
+        @Config.LangKey(Reference.MOD_ID + ".config.server.trailer_sync_cooldown")
+        public int trailerSyncCooldown = 100;
+
+        @Config.Name("Trailer Inventory Sync Cooldown")
+        @Config.Comment("The amount of ticks to wait before syncing trailer inventory to tracking clients. If the value is set to 0 or less, the inventory will not sync and will save on network usage.")
+        @Config.LangKey(Reference.MOD_ID + ".config.server.trailer_inventory_sync_cooldown")
+        public int trailerInventorySyncCooldown = 20;
+
+        @Config.Name("Pickup Vehicles")
+        @Config.Comment("Allows players to pick up vehicles by crouching and right clicking")
+        @Config.LangKey(Reference.MOD_ID + ".config.server.pick_up_vehicles")
+        public boolean pickUpVehicles = true;
+
+        @Config.Name("Max Hose Distance")
+        @Config.Comment("The maximum distance before the hose from the gas pump or fluid hose breaks")
+        @Config.LangKey(Reference.MOD_ID + ".config.server.max_hose_distance")
+        public double maxHoseDistance = 6.0;
     }
 
     public static class Client
@@ -48,6 +78,11 @@ public class VehicleConfig
         @Config.Comment("Configuration for display related options")
         @Config.LangKey(Reference.MOD_ID + ".config.client.display")
         public Display display = new Display();
+
+        @Config.Name("Controller")
+        @Config.Comment("Configuration options for controller support (Must have Controllable install)")
+        @Config.LangKey(Reference.MOD_ID + ".config.client.controller")
+        public Controller controller = new Controller();
     }
 
     public static class Interaction
@@ -77,12 +112,25 @@ public class VehicleConfig
         public boolean workstationAnimation = true;
     }
 
+    public static class Controller
+    {
+        @Config.Name("Use Triggers")
+        @Config.Comment("If true, will use the triggers on controller to control the acceleration of the vehicle.")
+        @Config.LangKey(Reference.MOD_ID + ".config.client.controller.use_triggers")
+        public boolean useTriggers = false;
+    }
+
     public static class Debug
     {
         @Config.Name("Render Vehicle Outlines")
         @Config.Comment("If true, renders an outline of all the elements on a vehicle's model. Useful for debugging interactions.")
         @Config.LangKey(Reference.MOD_ID + ".config.client.debug.render_outlines")
         public boolean renderOutlines = false;
+
+        @Config.Name("Reload Raytracer Each Tick")
+        @Config.Comment("If true, the raytracer will be reloaded each tick.")
+        @Config.LangKey(Reference.MOD_ID + ".config.client.debug.raytracer.continuous_reload")
+        public boolean reloadRaytracerEachTick = false;
     }
 
     @SubscribeEvent

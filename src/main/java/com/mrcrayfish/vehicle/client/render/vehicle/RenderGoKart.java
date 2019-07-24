@@ -1,7 +1,6 @@
 package com.mrcrayfish.vehicle.client.render.vehicle;
 
-import com.mrcrayfish.vehicle.client.render.AbstractRenderLandVehicle;
-import com.mrcrayfish.vehicle.client.render.Wheel;
+import com.mrcrayfish.vehicle.client.render.AbstractRenderVehicle;
 import com.mrcrayfish.vehicle.entity.vehicle.EntityGoKart;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.ModelPlayer;
@@ -12,21 +11,12 @@ import net.minecraft.entity.player.EntityPlayer;
 /**
  * Author: MrCrayfish
  */
-public class RenderGoKart extends AbstractRenderLandVehicle<EntityGoKart>
+public class RenderGoKart extends AbstractRenderVehicle<EntityGoKart>
 {
-    public RenderGoKart()
-    {
-        this.setEnginePosition(0, 2, -9, 180, 1.2);
-        this.addWheel(Wheel.Side.LEFT, Wheel.Position.FRONT, 9.0F, 0.2F, 13.5F, 1.4F);
-        this.addWheel(Wheel.Side.RIGHT, Wheel.Position.FRONT, 9.0F, 0.2F, 13.5F, 1.4F);
-        this.addWheel(Wheel.Side.LEFT, Wheel.Position.REAR, 9.0F, 0.2F, -8.5F, 1.4F);
-        this.addWheel(Wheel.Side.RIGHT, Wheel.Position.REAR, 9.0F, 0.2F, -8.5F, 1.4F);
-    }
-
     @Override
     public void render(EntityGoKart entity, float partialTicks)
     {
-        Minecraft.getMinecraft().getRenderItem().renderItem(entity.body, ItemCameraTransforms.TransformType.NONE);
+        this.renderDamagedPart(entity, entity.body);
 
         //Render the handles bars
         GlStateManager.pushMatrix();
@@ -36,7 +26,7 @@ public class RenderGoKart extends AbstractRenderLandVehicle<EntityGoKart>
             GlStateManager.translate(0, -0.02, 0);
             GlStateManager.scale(0.9, 0.9, 0.9);
 
-            float wheelAngle = entity.prevWheelAngle + (entity.wheelAngle - entity.prevWheelAngle) * partialTicks;
+            float wheelAngle = entity.prevRenderWheelAngle + (entity.renderWheelAngle - entity.prevRenderWheelAngle) * partialTicks;
             float wheelAngleNormal = wheelAngle / 45F;
             float turnRotation = wheelAngleNormal * 25F;
             GlStateManager.rotate(turnRotation, 0, 1, 0);
@@ -54,7 +44,7 @@ public class RenderGoKart extends AbstractRenderLandVehicle<EntityGoKart>
         model.bipedLeftLeg.rotateAngleX = (float) Math.toRadians(-85F);
         model.bipedLeftLeg.rotateAngleY = (float) Math.toRadians(-10F);
 
-        float wheelAngle = entity.prevWheelAngle + (entity.wheelAngle - entity.prevWheelAngle) * partialTicks;
+        float wheelAngle = entity.prevRenderWheelAngle + (entity.renderWheelAngle - entity.prevRenderWheelAngle) * partialTicks;
         float wheelAngleNormal = wheelAngle / 45F;
         float turnRotation = wheelAngleNormal * 6F;
 

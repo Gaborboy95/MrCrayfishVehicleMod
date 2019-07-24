@@ -1,7 +1,6 @@
 package com.mrcrayfish.vehicle.client.render.vehicle;
 
-import com.mrcrayfish.vehicle.client.render.AbstractRenderLandVehicle;
-import com.mrcrayfish.vehicle.client.render.Wheel;
+import com.mrcrayfish.vehicle.client.render.AbstractRenderVehicle;
 import com.mrcrayfish.vehicle.entity.vehicle.EntityATV;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.ModelPlayer;
@@ -12,17 +11,8 @@ import net.minecraft.entity.player.EntityPlayer;
 /**
  * Author: MrCrayfish
  */
-public class RenderATV extends AbstractRenderLandVehicle<EntityATV>
+public class RenderATV extends AbstractRenderVehicle<EntityATV>
 {
-    public RenderATV()
-    {
-        this.setFuelPortPosition(EntityATV.FUEL_PORT_POSITION);
-        this.addWheel(Wheel.Side.LEFT, Wheel.Position.FRONT, 4.0F, 10.5F, 1.85F);
-        this.addWheel(Wheel.Side.RIGHT, Wheel.Position.FRONT, 4.0F, 10.5F, 1.85F);
-        this.addWheel(Wheel.Side.LEFT, Wheel.Position.REAR, 4.0F, -10.5F, 1.85F);
-        this.addWheel(Wheel.Side.RIGHT, Wheel.Position.REAR, 4.0F, -10.5F, 1.85F);
-    }
-
     @Override
     protected boolean shouldRenderFuelLid()
     {
@@ -33,7 +23,7 @@ public class RenderATV extends AbstractRenderLandVehicle<EntityATV>
     public void render(EntityATV entity, float partialTicks)
     {
         //Body
-        Minecraft.getMinecraft().getRenderItem().renderItem(entity.body, ItemCameraTransforms.TransformType.NONE);
+        this.renderDamagedPart(entity, entity.body);
 
         //Handle Bars
         GlStateManager.pushMatrix();
@@ -42,7 +32,7 @@ public class RenderATV extends AbstractRenderLandVehicle<EntityATV>
             GlStateManager.rotate(-45F, 1, 0, 0);
             GlStateManager.translate(0, -0.025, 0);
 
-            float wheelAngle = entity.prevWheelAngle + (entity.wheelAngle - entity.prevWheelAngle) * partialTicks;
+            float wheelAngle = entity.prevRenderWheelAngle + (entity.renderWheelAngle - entity.prevRenderWheelAngle) * partialTicks;
             float wheelAngleNormal = wheelAngle / 45F;
             float turnRotation = wheelAngleNormal * 15F;
             GlStateManager.rotate(turnRotation, 0, 1, 0);
@@ -55,7 +45,7 @@ public class RenderATV extends AbstractRenderLandVehicle<EntityATV>
     @Override
     public void applyPlayerModel(EntityATV entity, EntityPlayer player, ModelPlayer model, float partialTicks)
     {
-        float wheelAngle = entity.prevWheelAngle + (entity.wheelAngle - entity.prevWheelAngle) * partialTicks;
+        float wheelAngle = entity.prevRenderWheelAngle + (entity.renderWheelAngle - entity.prevRenderWheelAngle) * partialTicks;
         float wheelAngleNormal = wheelAngle / 45F;
         float turnRotation = wheelAngleNormal * 12F;
         model.bipedRightArm.rotateAngleX = (float) Math.toRadians(-65F - turnRotation);

@@ -10,19 +10,21 @@ import com.mrcrayfish.vehicle.client.EntityRaytracer.RayTraceResultRotated;
 import com.mrcrayfish.vehicle.client.render.AbstractRenderVehicle;
 import com.mrcrayfish.vehicle.client.render.VehicleRenderRegistry;
 import com.mrcrayfish.vehicle.common.CommonEvents;
-import com.mrcrayfish.vehicle.entity.*;
-import com.mrcrayfish.vehicle.entity.vehicle.*;
+import com.mrcrayfish.vehicle.entity.EntityPoweredVehicle;
+import com.mrcrayfish.vehicle.entity.EntityVehicle;
 import com.mrcrayfish.vehicle.init.ModBlocks;
+import com.mrcrayfish.vehicle.init.ModItems;
 import com.mrcrayfish.vehicle.init.ModSounds;
 import com.mrcrayfish.vehicle.item.ItemSprayCan;
-import com.mrcrayfish.vehicle.item.ItemWrench;
+import com.mrcrayfish.vehicle.network.PacketHandler;
+import com.mrcrayfish.vehicle.network.message.MessageHitchTrailer;
 import com.mrcrayfish.vehicle.tileentity.TileEntityFluidPipe;
-import com.mrcrayfish.vehicle.util.FluidUtils;
-
+import com.mrcrayfish.vehicle.util.RenderUtil;
 import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.audio.PositionedSoundRecord;
+import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.model.ModelBiped;
 import net.minecraft.client.model.ModelPlayer;
 import net.minecraft.client.model.ModelRenderer;
@@ -30,6 +32,7 @@ import net.minecraft.client.renderer.BufferBuilder;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.RenderGlobal;
 import net.minecraft.client.renderer.Tessellator;
+import net.minecraft.client.renderer.block.model.ItemCameraTransforms;
 import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.EntityPlayer;
@@ -37,17 +40,13 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.EnumHand;
 import net.minecraft.util.EnumHandSide;
-import net.minecraft.util.math.AxisAlignedBB;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.RayTraceResult;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.util.math.*;
 import net.minecraft.util.text.TextFormatting;
 import net.minecraft.world.World;
 import net.minecraftforge.client.event.DrawBlockHighlightEvent;
 import net.minecraftforge.client.event.EntityViewRenderEvent;
 import net.minecraftforge.client.event.FOVUpdateEvent;
 import net.minecraftforge.client.event.RenderSpecificHandEvent;
-import net.minecraftforge.client.event.TextureStitchEvent;
 import net.minecraftforge.event.entity.EntityMountEvent;
 import net.minecraftforge.fml.common.FMLCommonHandler;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
@@ -68,10 +67,11 @@ public class ClientEvents
 {
     private int lastSlot = -1;
     private int originalPerspective = -1;
-    private double jerryCanMainHandOffset;
+    private double fuelingHandOffset;
     private int tickCounter;
     private boolean fueling;
     private double offsetPrev, offsetPrevPrev;
+    private boolean shouldRenderNozzle;
 
     @SubscribeEvent
     public void onEntityMount(EntityMountEvent event)
@@ -152,7 +152,7 @@ public class ClientEvents
     public void onFovUpdate(FOVUpdateEvent event)
     {
         Entity ridingEntity = Minecraft.getMinecraft().player.getRidingEntity();
-        if(ridingEntity instanceof EntityPlane || ridingEntity instanceof EntityHelicopter)
+        if(ridingEntity instanceof EntityVehicle)
         {
             event.setNewfov(1.0F);
         }
@@ -162,80 +162,18 @@ public class ClientEvents
     public void onPreRender(ModelPlayerEvent.Render.Pre event)
     {
         EntityPlayer player = event.getEntityPlayer();
-        Entity ridingEntity = event.getEntityPlayer().getRidingEntity();
-
-        if(ridingEntity != null && ridingEntity instanceof EntityVehicle)
+        Entity ridingEntity = player.getRidingEntity();
+        if(ridingEntity instanceof EntityVehicle)
         {
             EntityVehicle vehicle = (EntityVehicle) ridingEntity;
             /* Suppressed due to warning however it's safe to say cast won't throw an exception
-             * due to the registration process of vehicle renders */
+             * due to the strict registration process of vehicle renders */
             @SuppressWarnings("unchecked")
             AbstractRenderVehicle<EntityVehicle> render = (AbstractRenderVehicle<EntityVehicle>) VehicleRenderRegistry.getRender(vehicle.getClass());
             if(render != null)
             {
                 render.applyPlayerRender(vehicle, player, event.getPartialTicks());
-                return;
             }
-        }
-
-        if(ridingEntity instanceof EntityMotorcycle)
-        {
-            EntityPoweredVehicle vehicle = (EntityPoweredVehicle) ridingEntity;
-            double offset = vehicle.getMountedYOffset() * 3 - 3 * 0.0625;
-            GlStateManager.translate(0, offset, 0);
-            float currentSpeedNormal = (vehicle.prevCurrentSpeed + (vehicle.currentSpeed - vehicle.prevCurrentSpeed) * event.getPartialTicks()) / vehicle.getMaxSpeed();
-            float turnAngleNormal = (vehicle.prevTurnAngle + (vehicle.turnAngle - vehicle.prevTurnAngle) * event.getPartialTicks()) / 45F;
-            GlStateManager.rotate(turnAngleNormal * currentSpeedNormal * 20F, 0, 0, 1);
-            GlStateManager.translate(0, -offset, 0);
-        }
-
-        if(ridingEntity instanceof EntityJetSki)
-        {
-            EntityPoweredVehicle vehicle = (EntityPoweredVehicle) ridingEntity;
-            double offset = vehicle.getMountedYOffset() * 3 - 3 * 0.0625;
-            GlStateManager.translate(0, offset, 0);
-            float currentSpeedNormal = (vehicle.prevCurrentSpeed + (vehicle.currentSpeed - vehicle.prevCurrentSpeed) * event.getPartialTicks()) / vehicle.getMaxSpeed();
-            float turnAngleNormal = (vehicle.prevTurnAngle + (vehicle.turnAngle - vehicle.prevTurnAngle) * event.getPartialTicks()) / 45F;
-            GlStateManager.rotate(turnAngleNormal * currentSpeedNormal * 15F, 0, 0, 1);
-            GlStateManager.rotate(-8F * Math.min(1.0F, currentSpeedNormal), 1, 0, 0);
-            GlStateManager.translate(0, -offset, 0);
-        }
-
-        if(ridingEntity instanceof EntitySpeedBoat)
-        {
-            EntityPoweredVehicle vehicle = (EntityPoweredVehicle) ridingEntity;
-            double offset = vehicle.getMountedYOffset();
-            GlStateManager.translate(0, offset + ridingEntity.getEyeHeight() + 0.25, 0);
-            float currentSpeedNormal = (vehicle.prevCurrentSpeed + (vehicle.currentSpeed - vehicle.prevCurrentSpeed) * event.getPartialTicks()) / vehicle.getMaxSpeed();
-            float turnAngleNormal = (vehicle.prevTurnAngle + (vehicle.turnAngle - vehicle.prevTurnAngle) * event.getPartialTicks()) / 45F;
-            GlStateManager.rotate(turnAngleNormal * currentSpeedNormal * 15F, 0, 0, 1);
-            GlStateManager.rotate(-8F * Math.min(1.0F, currentSpeedNormal), 1, 0, 0);
-            GlStateManager.translate(0, -(offset + ridingEntity.getEyeHeight()) - 0.25, 0);
-        }
-
-        if(ridingEntity instanceof EntityAluminumBoat)
-        {
-            EntityPoweredVehicle vehicle = (EntityPoweredVehicle) ridingEntity;
-            double offset = vehicle.getMountedYOffset();
-            GlStateManager.translate(0, offset + ridingEntity.getEyeHeight() + 0.25, 0);
-            float currentSpeedNormal = (vehicle.prevCurrentSpeed + (vehicle.currentSpeed - vehicle.prevCurrentSpeed) * event.getPartialTicks()) / vehicle.getMaxSpeed();
-            float turnAngleNormal = (vehicle.prevTurnAngle + (vehicle.turnAngle - vehicle.prevTurnAngle) * event.getPartialTicks()) / 45F;
-            GlStateManager.rotate(turnAngleNormal * currentSpeedNormal * 15F, 0, 0, 1);
-            GlStateManager.rotate(-8F * Math.min(1.0F, currentSpeedNormal), 1, 0, 0);
-            GlStateManager.translate(0, -(offset + ridingEntity.getEyeHeight()) - 0.25, 0);
-        }
-
-        if(ridingEntity instanceof EntityBath)
-        {
-            EntityBath vehicle = (EntityBath) ridingEntity;
-            GlStateManager.translate(0, 0, 0.25);
-            GlStateManager.translate(0, 0.625, 0);
-            float bodyPitch = vehicle.prevBodyRotationX + (vehicle.bodyRotationX - vehicle.prevBodyRotationX) * event.getPartialTicks();
-            float bodyRoll = vehicle.prevBodyRotationZ + (vehicle.bodyRotationZ - vehicle.prevBodyRotationZ) * event.getPartialTicks();
-            GlStateManager.rotate(bodyRoll, 0, 0, 1);
-            GlStateManager.rotate(-bodyPitch, 1, 0, 0);
-            GlStateManager.translate(0, -0.625, 0);
-            GlStateManager.translate(0, 0, -0.25);
         }
     }
 
@@ -249,6 +187,24 @@ public class ClientEvents
 
         Entity ridingEntity = player.getRidingEntity();
         ModelPlayer model = event.getModelPlayer();
+
+        if(player.getDataManager().get(CommonEvents.GAS_PUMP).isPresent())
+        {
+            boolean rightHanded = player.getPrimaryHand() == EnumHandSide.RIGHT;
+            if(rightHanded)
+            {
+                model.bipedRightArm.rotateAngleX = (float) Math.toRadians(-20F);
+                model.bipedRightArm.rotateAngleY = (float) Math.toRadians(0F);
+                model.bipedRightArm.rotateAngleZ = (float) Math.toRadians(0F);
+            }
+            else
+            {
+                model.bipedLeftArm.rotateAngleX = (float) Math.toRadians(-20F);
+                model.bipedLeftArm.rotateAngleY = (float) Math.toRadians(0F);
+                model.bipedLeftArm.rotateAngleZ = (float) Math.toRadians(0F);
+            }
+            return;
+        }
 
         if(!player.isRiding())
         {
@@ -289,143 +245,6 @@ public class ClientEvents
                 render.applyPlayerModel(vehicle, player, model, event.getPartialTicks());
                 return;
             }
-        }
-
-        if(ridingEntity instanceof EntityMoped)
-        {
-            EntityPoweredVehicle vehicle = (EntityPoweredVehicle) ridingEntity;
-            float wheelAngle = vehicle.prevWheelAngle + (vehicle.wheelAngle - vehicle.prevWheelAngle) * event.getPartialTicks();
-            float wheelAngleNormal = wheelAngle / 45F;
-            float turnRotation = wheelAngleNormal * 6F;
-            model.bipedRightArm.rotateAngleX = (float) Math.toRadians(-75F - turnRotation);
-            model.bipedRightArm.rotateAngleY = (float) Math.toRadians(7F);
-            model.bipedRightArm.offsetZ -= 0.05 * wheelAngleNormal;
-            model.bipedLeftArm.rotateAngleX = (float) Math.toRadians(-75F + turnRotation);
-            model.bipedLeftArm.rotateAngleY = (float) Math.toRadians(-7F);
-            model.bipedLeftArm.offsetZ -= 0.05 * -wheelAngleNormal;
-
-            model.bipedRightLeg.rotateAngleX = (float) Math.toRadians(-55F);
-            model.bipedLeftLeg.rotateAngleX = (float) Math.toRadians(-55F);
-
-            return;
-        }
-
-        if(ridingEntity instanceof EntityBath)
-        {
-            model.bipedRightLeg.rotateAngleX = (float) Math.toRadians(-85F);
-            model.bipedRightLeg.rotateAngleY = (float) Math.toRadians(10F);
-            model.bipedLeftLeg.rotateAngleX = (float) Math.toRadians(-85F);
-            model.bipedLeftLeg.rotateAngleY = (float) Math.toRadians(-10F);
-            model.bipedRightArm.rotateAngleX = (float) Math.toRadians(-80F);
-            model.bipedRightArm.rotateAngleY = (float) Math.toRadians(5F);
-            model.bipedLeftArm.rotateAngleX = (float) Math.toRadians(-80F);
-            model.bipedLeftArm.rotateAngleY = (float) Math.toRadians(-5F);
-            return;
-        }
-
-        if(ridingEntity instanceof EntityAluminumBoat)
-        {
-            model.bipedRightLeg.rotateAngleX = (float) Math.toRadians(-85F);
-            model.bipedRightLeg.rotateAngleY = (float) Math.toRadians(20F);
-            model.bipedLeftLeg.rotateAngleX = (float) Math.toRadians(-85F);
-            model.bipedLeftLeg.rotateAngleY = (float) Math.toRadians(-20F);
-            return;
-        }
-
-        if(ridingEntity instanceof EntitySpeedBoat)
-        {
-            model.bipedRightLeg.rotateAngleX = (float) Math.toRadians(-85F);
-            model.bipedRightLeg.rotateAngleY = (float) Math.toRadians(20F);
-            model.bipedLeftLeg.rotateAngleX = (float) Math.toRadians(-85F);
-            model.bipedLeftLeg.rotateAngleY = (float) Math.toRadians(-20F);
-
-            EntityPoweredVehicle vehicle = (EntityPoweredVehicle) ridingEntity;
-            float wheelAngle = vehicle.prevWheelAngle + (vehicle.wheelAngle - vehicle.prevWheelAngle) * event.getPartialTicks();
-            float wheelAngleNormal = wheelAngle / 45F;
-            float turnRotation = wheelAngleNormal * 6F;
-            model.bipedRightArm.rotateAngleX = (float) Math.toRadians(-65F - turnRotation);
-            model.bipedRightArm.rotateAngleY = (float) Math.toRadians(-7F);
-            model.bipedLeftArm.rotateAngleX = (float) Math.toRadians(-65F + turnRotation);
-            model.bipedLeftArm.rotateAngleY = (float) Math.toRadians(7F);
-            return;
-        }
-
-        if(ridingEntity instanceof EntityMiniBike)
-        {
-            EntityPoweredVehicle vehicle = (EntityPoweredVehicle) ridingEntity;
-            float wheelAngle = vehicle.prevWheelAngle + (vehicle.wheelAngle - vehicle.prevWheelAngle) * event.getPartialTicks();
-            float wheelAngleNormal = wheelAngle / 45F;
-            float turnRotation = wheelAngleNormal * 8F;
-            model.bipedRightArm.rotateAngleX = (float) Math.toRadians(-55F - turnRotation);
-            model.bipedLeftArm.rotateAngleX = (float) Math.toRadians(-55F + turnRotation);
-        }
-
-        if(ridingEntity instanceof EntityShoppingCart)
-        {
-            model.bipedRightArm.rotateAngleX = (float) Math.toRadians(-70F);
-            model.bipedRightArm.rotateAngleY = (float) Math.toRadians(5F);
-            model.bipedLeftArm.rotateAngleX = (float) Math.toRadians(-70F);
-            model.bipedLeftArm.rotateAngleY = (float) Math.toRadians(-5F);
-            model.bipedRightLeg.rotateAngleX = (float) Math.toRadians(-90F);
-            model.bipedRightLeg.rotateAngleY = (float) Math.toRadians(15F);
-            model.bipedLeftLeg.rotateAngleX = (float) Math.toRadians(-90F);
-            model.bipedLeftLeg.rotateAngleY = (float) Math.toRadians(-15F);
-            return;
-        }
-
-        if(ridingEntity instanceof EntitySmartCar)
-        {
-            model.bipedRightLeg.rotateAngleX = (float) Math.toRadians(-85F);
-            model.bipedRightLeg.rotateAngleY = (float) Math.toRadians(10F);
-            model.bipedLeftLeg.rotateAngleX = (float) Math.toRadians(-85F);
-            model.bipedLeftLeg.rotateAngleY = (float) Math.toRadians(-10F);
-
-            EntityPoweredVehicle vehicle = (EntityPoweredVehicle) ridingEntity;
-            float wheelAngle = vehicle.prevWheelAngle + (vehicle.wheelAngle - vehicle.prevWheelAngle) * event.getPartialTicks();
-            float wheelAngleNormal = wheelAngle / 45F;
-            float turnRotation = wheelAngleNormal * 6F;
-
-            model.bipedRightArm.rotateAngleX = (float) Math.toRadians(-80F - turnRotation);
-            model.bipedLeftArm.rotateAngleX = (float) Math.toRadians(-80F + turnRotation);
-
-            return;
-        }
-
-        if(ridingEntity instanceof EntityPoweredVehicle)
-        {
-            EntityPoweredVehicle vehicle = (EntityPoweredVehicle) ridingEntity;
-
-            float wheelAngle = vehicle.prevWheelAngle + (vehicle.wheelAngle - vehicle.prevWheelAngle) * event.getPartialTicks();
-            float wheelAngleNormal = wheelAngle / 45F;
-
-            if(ridingEntity instanceof EntityJetSki)
-            {
-                float turnRotation = wheelAngleNormal * 12F;
-                model.bipedRightArm.rotateAngleX = (float) Math.toRadians(-65F - turnRotation);
-                model.bipedRightArm.rotateAngleY = (float) Math.toRadians(15F);
-                model.bipedLeftArm.rotateAngleX = (float) Math.toRadians(-65F + turnRotation);
-                model.bipedLeftArm.rotateAngleY = (float) Math.toRadians(-15F);
-
-                if(ridingEntity.getControllingPassenger() != player)
-                {
-                    model.bipedRightArm.rotateAngleX = (float) Math.toRadians(-55F);
-                    model.bipedRightArm.rotateAngleY = (float) Math.toRadians(0F);
-                    model.bipedLeftArm.rotateAngleX = (float) Math.toRadians(-55F);
-                    model.bipedLeftArm.rotateAngleY = (float) Math.toRadians(0F);
-                }
-
-            }
-            else if(ridingEntity instanceof EntityDuneBuggy)
-            {
-                float turnRotation = wheelAngleNormal * 8F;
-                model.bipedRightArm.rotateAngleX = (float) Math.toRadians(-50F - turnRotation);
-                model.bipedLeftArm.rotateAngleX = (float) Math.toRadians(-50F + turnRotation);
-            }
-
-            model.bipedRightLeg.rotateAngleX = (float) Math.toRadians(-65F);
-            model.bipedRightLeg.rotateAngleY = (float) Math.toRadians(30F);
-            model.bipedLeftLeg.rotateAngleX = (float) Math.toRadians(-65F);
-            model.bipedLeftLeg.rotateAngleY = (float) Math.toRadians(-30F);
         }
     }
 
@@ -479,11 +298,12 @@ public class ClientEvents
     @SubscribeEvent
     public void onRenderHand(RenderSpecificHandEvent event)
     {
-        if (event.getHand() == EnumHand.OFF_HAND && jerryCanMainHandOffset > -1)
+        if (event.getHand() == EnumHand.OFF_HAND && fuelingHandOffset > -1)
         {
             GlStateManager.rotate(25F, 1, 0, 0);
-            GlStateManager.translate(0, -0.35 - jerryCanMainHandOffset, 0.2);
+            GlStateManager.translate(0, -0.35 - fuelingHandOffset, 0.2);
         }
+
         if(!event.getItemStack().isEmpty() && event.getItemStack().getItem() instanceof ItemSprayCan && event.getItemStack().getMetadata() == 0)
         {
             ItemStack stack = event.getItemStack().copy();
@@ -491,7 +311,8 @@ public class ClientEvents
             Minecraft.getMinecraft().getItemRenderer().renderItemInFirstPerson(Minecraft.getMinecraft().player, event.getPartialTicks(), event.getInterpolatedPitch(), event.getHand(), event.getSwingProgress(), stack, event.getEquipProgress());
             event.setCanceled(true);
         }
-        jerryCanMainHandOffset = -1;
+
+        fuelingHandOffset = -1;
         RayTraceResultRotated result = EntityRaytracer.getContinuousInteraction();
         if (result != null && result.equalsContinuousInteraction(EntityRaytracer.FUNCTION_FUELING) && event.getHand() == EntityRaytracer.getContinuousInteractionObject())
         {
@@ -506,20 +327,90 @@ public class ClientEvents
             GlStateManager.rotate(-25F, 1, 0, 0);
             if (event.getHand() == EnumHand.MAIN_HAND)
             {
-                jerryCanMainHandOffset = offset;
+                fuelingHandOffset = offset;
             }
+        }
+
+        EntityPlayer player = Minecraft.getMinecraft().player;
+        if(player.getDataManager().get(CommonEvents.GAS_PUMP).isPresent())
+        {
+            if(event.getSwingProgress() > 0)
+            {
+                shouldRenderNozzle = true;
+            }
+            if(event.getHand() == EnumHand.MAIN_HAND && shouldRenderNozzle)
+            {
+                if(event.getSwingProgress() > 0 && event.getSwingProgress() <= 0.25) return;
+                GlStateManager.pushMatrix();
+                boolean mainHand = event.getHand() == EnumHand.MAIN_HAND;
+                EnumHandSide handSide = mainHand ? player.getPrimaryHand() : player.getPrimaryHand().opposite();
+                float f = -0.6F * MathHelper.sin(MathHelper.sqrt(event.getSwingProgress()) * (float) Math.PI);
+                float f1 = 0.2F * MathHelper.sin(MathHelper.sqrt(event.getSwingProgress()) * ((float) Math.PI * 2F));
+                float f2 = -0.2F * MathHelper.sin(event.getSwingProgress() * (float) Math.PI);
+                int handOffset = handSide == EnumHandSide.RIGHT ? 1 : -1;
+                GlStateManager.translate((float) handOffset * f, f1, f2);
+                GlStateManager.translate((float) handOffset * 0.65F, -0.52F + 0.25F, -0.72F);
+                GlStateManager.rotate(45F, 1, 0, 0);
+                RenderUtil.renderItemModel(new ItemStack(ModItems.MODELS), Models.NOZZLE.getModel(), ItemCameraTransforms.TransformType.NONE);
+                GlStateManager.popMatrix();
+                event.setCanceled(true);
+            }
+        }
+        else
+        {
+            shouldRenderNozzle = false;
         }
     }
 
     @SubscribeEvent
     public void onRenderThirdPerson(RenderItemEvent.Held.Pre event)
     {
+        Entity entity = event.getEntity();
+        if(entity instanceof EntityPlayer && entity.getDataManager().get(CommonEvents.GAS_PUMP).isPresent())
+        {
+            event.setCanceled(true);
+            return;
+        }
+
         if(!event.getItem().isEmpty() && event.getItem().getItem() instanceof ItemSprayCan && event.getItem().getMetadata() == 0)
         {
             ItemStack stack = event.getItem().copy();
             stack.setItemDamage(1);
             Minecraft.getMinecraft().getItemRenderer().renderItemSide(event.getEntity(), stack, event.getTransformType(), event.getHandSide() == EnumHandSide.LEFT);
             event.setCanceled(true);
+        }
+    }
+
+    @SubscribeEvent
+    public void onModelRenderPost(ModelPlayerEvent.Render.Post event)
+    {
+        EntityPlayer entity = event.getEntityPlayer();
+        if(entity.getDataManager().get(CommonEvents.GAS_PUMP).isPresent())
+        {
+            GlStateManager.pushMatrix();
+            {
+                if(event.getModelPlayer().isChild)
+                {
+                    GlStateManager.translate(0.0F, 0.75F, 0.0F);
+                    GlStateManager.scale(0.5F, 0.5F, 0.5F);
+                }
+                GlStateManager.pushMatrix();
+                {
+                    if(entity.isSneaking())
+                    {
+                        GlStateManager.translate(0.0F, 0.2F, 0.0F);
+                    }
+                    event.getModelPlayer().postRenderArm(0.0625F, entity.getPrimaryHand());
+                    GlStateManager.rotate(180F, 1, 0, 0);
+                    GlStateManager.rotate(180F, 0, 1, 0);
+                    boolean leftHanded = entity.getPrimaryHand() == EnumHandSide.LEFT;
+                    GlStateManager.translate((float) (leftHanded ? -1 : 1) / 16.0F, 0.125F, -0.625F);
+                    GlStateManager.translate(0, -9 * 0.0625F, 5.75 * 0.0625F);
+                    RenderUtil.renderItemModel(new ItemStack(ModItems.MODELS), Models.NOZZLE.getModel(), ItemCameraTransforms.TransformType.NONE);
+                }
+                GlStateManager.popMatrix();
+            }
+            GlStateManager.popMatrix();
         }
     }
 
@@ -620,7 +511,7 @@ public class ClientEvents
             RayTraceResult objectMouseOver = Minecraft.getMinecraft().objectMouseOver;
             for (EnumHand hand : EnumHand.values())
             {
-                if (!(player.getHeldItem(hand).getItem() instanceof ItemWrench))
+                if (!(player.getHeldItem(hand).getItem() == ModItems.WRENCH))
                 {
                     continue;
                 }
@@ -667,12 +558,6 @@ public class ClientEvents
     }
 
     @SubscribeEvent
-    public void clearCaches(TextureStitchEvent.Post event)
-    {
-        FluidUtils.clearCacheFluidColor();
-    }
-
-    @SubscribeEvent
     public void setLiquidFogDensity(EntityViewRenderEvent.FogDensity event)
     {
         Block block = event.getState().getBlock();
@@ -682,6 +567,23 @@ public class ClientEvents
             GlStateManager.setFog(GlStateManager.FogMode.EXP);
             event.setDensity(isSap ? 1 : 0.5F);
             event.setCanceled(true);
+        }
+    }
+
+    @SubscribeEvent
+    public void onJump(InputEvent.KeyInputEvent event)
+    {
+        if(GuiScreen.isCtrlKeyDown())
+        {
+            EntityPlayer player = Minecraft.getMinecraft().player;
+            if(Minecraft.getMinecraft().currentScreen == null && player.getRidingEntity() instanceof EntityVehicle)
+            {
+                EntityVehicle vehicle = (EntityVehicle) player.getRidingEntity();
+                if(vehicle.canTowTrailer())
+                {
+                    PacketHandler.INSTANCE.sendToServer(new MessageHitchTrailer(vehicle.getTrailer() == null));
+                }
+            }
         }
     }
 }

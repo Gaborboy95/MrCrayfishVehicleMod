@@ -27,14 +27,12 @@ public class MovingSoundVehicleRiding extends MovingSound
         this.repeat = true;
         this.repeatDelay = 0;
         this.volume = 0.001F;
-
-        System.out.println(vehicle.getRidingSound().getSoundName());
     }
 
     @Override
     public void update()
     {
-        this.volume = vehicle.canDrive() ? 0.8F : 0.8F * vehicle.getActualSpeed();
+        this.volume = vehicle.isEnginePowered() ? 0.8F : 0.8F * vehicle.getActualSpeed();
         if(!vehicle.isDead && player.isRiding() && player.getRidingEntity() == vehicle && player == Minecraft.getMinecraft().player)
         {
             this.pitch = vehicle.getMinEnginePitch() + (vehicle.getMaxEnginePitch() - vehicle.getMinEnginePitch()) * Math.abs(vehicle.getActualSpeed());

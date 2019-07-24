@@ -1,5 +1,6 @@
 package com.mrcrayfish.vehicle.entity;
 
+import com.mrcrayfish.vehicle.VehicleMod;
 import com.mrcrayfish.vehicle.network.PacketHandler;
 import com.mrcrayfish.vehicle.network.message.MessageFlaps;
 import net.minecraft.client.Minecraft;
@@ -17,6 +18,7 @@ import net.minecraftforge.common.util.Constants;
  */
 public abstract class EntityPlane extends EntityPoweredVehicle
 {
+    //TODO Create own data parameter system if problems continue to occur
     private static final DataParameter<Integer> FLAP_DIRECTION = EntityDataManager.createKey(EntityPlane.class, DataSerializers.VARINT);
     private static final DataParameter<Float> LIFT = EntityDataManager.createKey(EntityPlane.class, DataSerializers.FLOAT);
 
@@ -72,10 +74,7 @@ public abstract class EntityPlane extends EntityPoweredVehicle
         EntityLivingBase entity = (EntityLivingBase) this.getControllingPassenger();
         if(entity != null && entity.equals(Minecraft.getMinecraft().player))
         {
-            boolean flapUp = Minecraft.getMinecraft().gameSettings.keyBindJump.isKeyDown();
-            boolean flapDown = Minecraft.getMinecraft().gameSettings.keyBindSprint.isKeyDown();
-
-            FlapDirection flapDirection = FlapDirection.fromInput(flapUp, flapDown);
+            FlapDirection flapDirection = VehicleMod.proxy.getFlapDirection();
             if(this.getFlapDirection() != flapDirection)
             {
                 this.setFlapDirection(flapDirection);
@@ -171,9 +170,18 @@ public abstract class EntityPlane extends EntityPoweredVehicle
         }
         else
         {
-            this.turnAngle *= 0.75;
+            this.turnAngle *= 0.95;
         }
-        this.wheelAngle = this.turnAngle * Math.max(0.25F, 1.0F - Math.abs(Math.min(currentSpeed, 30F) / 30F));
+
+        if(this.isFlying())
+        {
+            this.wheelAngle = this.turnAngle * Math.max(0.25F, 1.0F - Math.abs(Math.min(currentSpeed, 30F) / 30F));
+        }
+        else
+        {
+            this.wheelAngle = this.turnAngle * Math.abs(Math.min(currentSpeed, 30F) / 30F);
+        }
+
         this.deltaYaw = this.wheelAngle;
 
         if(this.isFlying())
@@ -253,6 +261,12 @@ public abstract class EntityPlane extends EntityPoweredVehicle
      */
     @Override
     public void fall(float distance, float damageMultiplier) {}
+
+    @Override
+    public boolean canChangeWheels()
+    {
+        return false;
+    }
 
     public enum FlapDirection
     {

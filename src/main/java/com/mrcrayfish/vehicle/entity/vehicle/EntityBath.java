@@ -7,7 +7,6 @@ import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.EnumParticleTypes;
 import net.minecraft.util.SoundEvent;
-import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
 
 /**
@@ -18,8 +17,6 @@ public class EntityBath extends EntityPlane implements IEntityRaytraceable
     public EntityBath(World worldIn)
     {
         super(worldIn);
-        this.setHeldOffset(new Vec3d(4D, -3.75D, 0D));
-        this.setTrailerOffset(new Vec3d(0D, 0D, -0.4375D));
         this.setFuelConsumption(0.0F);
     }
 
@@ -57,7 +54,7 @@ public class EntityBath extends EntityPlane implements IEntityRaytraceable
     @Override
     public double getMountedYOffset()
     {
-        return 0;
+        return 0.0625;
     }
 
     @Override

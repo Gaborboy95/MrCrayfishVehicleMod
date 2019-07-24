@@ -2,7 +2,7 @@ package com.mrcrayfish.vehicle.entity.vehicle;
 
 import com.mrcrayfish.vehicle.client.EntityRaytracer.IEntityRaytraceable;
 import com.mrcrayfish.vehicle.entity.EngineType;
-import com.mrcrayfish.vehicle.entity.EntitySeaVehicle;
+import com.mrcrayfish.vehicle.entity.EntityBoat;
 import com.mrcrayfish.vehicle.init.ModItems;
 import com.mrcrayfish.vehicle.init.ModSounds;
 import net.minecraft.entity.Entity;
@@ -17,11 +17,8 @@ import net.minecraftforge.fml.relauncher.SideOnly;
 /**
  * Author: MrCrayfish
  */
-public class EntityAluminumBoat extends EntitySeaVehicle implements IEntityRaytraceable
+public class EntityAluminumBoat extends EntityBoat implements IEntityRaytraceable
 {
-    public float prevLeanAngle;
-    public float leanAngle;
-
     public EntityAluminumBoat(World worldIn)
     {
         super(worldIn);
@@ -29,7 +26,6 @@ public class EntityAluminumBoat extends EntitySeaVehicle implements IEntityRaytr
         this.setTurnSensitivity(5);
         this.setMaxTurnAngle(20);
         this.setSize(2.25F, 0.875F);
-        this.setHeldOffset(new Vec3d(6D, 0D, 0D));
         this.setFuelCapacity(25000F);
         this.setFuelConsumption(2.0F);
     }
@@ -66,14 +62,6 @@ public class EntityAluminumBoat extends EntitySeaVehicle implements IEntityRaytr
                 }
             }
         }
-    }
-
-    @Override
-    public void updateVehicle()
-    {
-        super.updateVehicle();
-        this.prevLeanAngle = this.leanAngle;
-        this.leanAngle = this.turnAngle / (float) getMaxTurnAngle();
     }
 
     @Override
@@ -117,7 +105,7 @@ public class EntityAluminumBoat extends EntitySeaVehicle implements IEntityRaytr
     {
         if (this.isPassenger(passenger))
         {
-            float xOffset = -0.95F;
+            float xOffset = -0.9F;
             float yOffset = (float)((this.isDead ? 0.01D : this.getMountedYOffset()) + passenger.getYOffset());
             float zOffset = -0.5F;
 
@@ -126,7 +114,7 @@ public class EntityAluminumBoat extends EntitySeaVehicle implements IEntityRaytr
                 int index = this.getPassengers().indexOf(passenger);
                 if (index > 0)
                 {
-                    xOffset += (index / 2) * 1.2F;
+                    xOffset += (index / 2F) * 1.2F;
                     zOffset += (index % 2) * 1F;
                 }
             }

@@ -4,6 +4,7 @@ import com.mrcrayfish.vehicle.block.BlockRotatedObject;
 import com.mrcrayfish.vehicle.crafting.FluidExtract;
 import com.mrcrayfish.vehicle.crafting.FluidMixerRecipe;
 import com.mrcrayfish.vehicle.crafting.FluidMixerRecipes;
+import com.mrcrayfish.vehicle.fluid.FluidTankMixerInput;
 import com.mrcrayfish.vehicle.init.ModFluids;
 import com.mrcrayfish.vehicle.util.FluidUtils;
 import net.minecraft.block.state.IBlockState;
@@ -33,12 +34,12 @@ import javax.annotation.Nullable;
 /**
  * Author: MrCrayfish
  */
-public class TileEntityFluidMixer extends TileEntity implements IInventory, ITickable
+public class TileEntityFluidMixer extends TileEntitySynced implements IInventory, ITickable
 {
     private NonNullList<ItemStack> inventory = NonNullList.withSize(7, ItemStack.EMPTY);
 
-    private FluidTank tankBlaze = new FluidTank(Fluid.BUCKET_VOLUME * 5);
-    private FluidTank tankEnderSap = new FluidTank(Fluid.BUCKET_VOLUME * 5);
+    private FluidTank tankBlaze = new FluidTankMixerInput(Fluid.BUCKET_VOLUME * 5);
+    private FluidTank tankEnderSap = new FluidTankMixerInput(Fluid.BUCKET_VOLUME * 5);
     private FluidTank tankFuelium = new FluidTank(Fluid.BUCKET_VOLUME * 10);
 
     public static final int FLUID_MAX_PROGRESS = 20 * 5;
@@ -50,6 +51,11 @@ public class TileEntityFluidMixer extends TileEntity implements IInventory, ITic
     private int extractionProgress;
 
     private String customName;
+
+    public TileEntityFluidMixer()
+    {
+        tankFuelium.setCanFill(false);
+    }
 
     @Override
     public int getSizeInventory()
@@ -183,20 +189,14 @@ public class TileEntityFluidMixer extends TileEntity implements IInventory, ITic
             case 3:
                 if(tankBlaze.getFluid() != null)
                     tankBlaze.getFluid().amount = value;
-                else
-                    tankBlaze.setFluid(new FluidStack(ModFluids.BLAZE_JUICE, value));
                 break;
             case 4:
                 if(tankEnderSap.getFluid() != null)
                     tankEnderSap.getFluid().amount = value;
-                else
-                    tankEnderSap.setFluid(new FluidStack(ModFluids.ENDER_SAP, value));
                 break;
             case 5:
                 if(tankFuelium.getFluid() != null)
                     tankFuelium.getFluid().amount = value;
-                else
-                    tankFuelium.setFluid(new FluidStack(ModFluids.FUELIUM, value));
                 break;
         }
     }
@@ -378,6 +378,26 @@ public class TileEntityFluidMixer extends TileEntity implements IInventory, ITic
     }
 
     @Override
+    public NBTTagCompound getUpdateTag()
+    {
+        NBTTagCompound tag = super.writeToNBT(new NBTTagCompound());
+
+        NBTTagCompound tagTankBlaze = new NBTTagCompound();
+        tankBlaze.writeToNBT(tagTankBlaze);
+        tag.setTag("TankBlaze", tagTankBlaze);
+
+        NBTTagCompound tagTankEnderSap = new NBTTagCompound();
+        tankEnderSap.writeToNBT(tagTankEnderSap);
+        tag.setTag("TankEnderSap", tagTankEnderSap);
+
+        NBTTagCompound tagTankFuelium = new NBTTagCompound();
+        tankFuelium.writeToNBT(tagTankFuelium);
+        tag.setTag("TankFuelium", tagTankFuelium);
+
+        return tag;
+    }
+
+    @Override
     public String getName()
     {
         return this.hasCustomName() ? this.customName : "container.fluid_mixer";
@@ -412,10 +432,7 @@ public class TileEntityFluidMixer extends TileEntity implements IInventory, ITic
                 {
                     return true;
                 }
-                if(facing == blockFacing.rotateY())
-                {
-                    return true;
-                }
+                return facing == blockFacing.rotateY();
             }
             return false;
         }

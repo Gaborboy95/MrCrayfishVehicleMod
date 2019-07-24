@@ -1,32 +1,40 @@
 package com.mrcrayfish.vehicle.entity;
 
+import com.mrcrayfish.vehicle.VehicleConfig;
+import com.mrcrayfish.vehicle.block.BlockVehicleCrate;
 import com.mrcrayfish.vehicle.common.CommonEvents;
 import com.mrcrayfish.vehicle.common.entity.PartPosition;
-import com.mrcrayfish.vehicle.entity.vehicle.EntityTrailer;
+import com.mrcrayfish.vehicle.crafting.VehicleRecipes;
+import com.mrcrayfish.vehicle.init.ModItems;
 import com.mrcrayfish.vehicle.init.ModSounds;
 import com.mrcrayfish.vehicle.item.ItemSprayCan;
-
+import com.mrcrayfish.vehicle.util.InventoryUtil;
 import io.netty.buffer.ByteBuf;
+import net.minecraft.block.Block;
 import net.minecraft.entity.Entity;
+import net.minecraft.entity.EntityList;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.entity.player.EntityPlayerMP;
+import net.minecraft.init.SoundEvents;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.network.datasync.DataParameter;
 import net.minecraft.network.datasync.DataSerializers;
 import net.minecraft.network.datasync.EntityDataManager;
-import net.minecraft.util.DamageSource;
-import net.minecraft.util.EntityDamageSourceIndirect;
-import net.minecraft.util.EnumHand;
-import net.minecraft.util.SoundCategory;
-import net.minecraft.util.math.AxisAlignedBB;
-import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.network.play.server.SPacketAnimation;
+import net.minecraft.util.*;
+import net.minecraft.util.math.*;
 import net.minecraft.world.World;
+import net.minecraft.world.WorldServer;
 import net.minecraftforge.common.util.Constants;
 import net.minecraftforge.fml.common.registry.IEntityAdditionalSpawnData;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
+
+import javax.annotation.Nullable;
+import java.util.List;
+import java.util.UUID;
 
 /**
  * Author: MrCrayfish
@@ -37,19 +45,22 @@ public abstract class EntityVehicle extends Entity implements IEntityAdditionalS
 
     protected static final DataParameter<Integer> COLOR = EntityDataManager.createKey(EntityVehicle.class, DataSerializers.VARINT);
     private static final DataParameter<Integer> TIME_SINCE_HIT = EntityDataManager.createKey(EntityVehicle.class, DataSerializers.VARINT);
-    private static final DataParameter<Float> DAMAGE_TAKEN = EntityDataManager.createKey(EntityVehicle.class, DataSerializers.FLOAT);
+    private static final DataParameter<Float> MAX_HEALTH = EntityDataManager.createKey(EntityVehicle.class, DataSerializers.FLOAT);
+    private static final DataParameter<Float> HEALTH = EntityDataManager.createKey(EntityVehicle.class, DataSerializers.FLOAT);
+    private static final DataParameter<Integer> TRAILER = EntityDataManager.createKey(EntityVehicle.class, DataSerializers.VARINT);
 
-    private PartPosition bodyPosition;
-    private Vec3d heldOffset = Vec3d.ZERO;
-    private Vec3d trailerOffset = Vec3d.ZERO;
-    private float axleOffset;
-    private float wheelOffset;
+    protected UUID trailerId;
+    protected EntityTrailer trailer = null;
+    private int searchDelay = 20;
 
     /**
      * ItemStack instances used for rendering
      */
     @SideOnly(Side.CLIENT)
     public ItemStack body, wheel;
+
+    @SideOnly(Side.CLIENT)
+    public ItemStack towBar;
 
     protected int lerpSteps;
     protected double lerpX;
@@ -67,8 +78,10 @@ public abstract class EntityVehicle extends Entity implements IEntityAdditionalS
     protected void entityInit()
     {
         this.dataManager.register(TIME_SINCE_HIT, 0);
-        this.dataManager.register(DAMAGE_TAKEN, 0F);
+        this.dataManager.register(MAX_HEALTH, 100F);
+        this.dataManager.register(HEALTH, 100F);
         this.dataManager.register(COLOR, 16383998);
+        this.dataManager.register(TRAILER, -1);
 
         if(this.world.isRemote)
         {
@@ -77,7 +90,16 @@ public abstract class EntityVehicle extends Entity implements IEntityAdditionalS
     }
 
     @SideOnly(Side.CLIENT)
-    public void onClientInit() {}
+    public void onClientInit()
+    {
+        towBar = new ItemStack(ModItems.TOW_BAR);
+        wheel = new ItemStack(ModItems.WHEEL, 1, WheelType.STANDARD.ordinal());
+    }
+
+    /* Overridden to prevent odd step sound when driving vehicles. Ain't no subclasses getting
+     * the ability to override this. */
+    @Override
+    protected final void playStepSound(BlockPos pos, Block blockIn) {}
 
     @Override
     public AxisAlignedBB getRenderBoundingBox()
@@ -90,28 +112,24 @@ public abstract class EntityVehicle extends Entity implements IEntityAdditionalS
     {
         if(!world.isRemote && !player.isSneaking())
         {
-            if(this instanceof EntityLandVehicle)
+            int trailerId = player.getDataManager().get(CommonEvents.TRAILER);
+            if(trailerId != -1)
             {
-                int trailerId = player.getDataManager().get(CommonEvents.TRAILER);
-                if(trailerId != -1)
+                if(this.getRidingEntity() == null && this.canTowTrailer() && this.getTrailer() == null)
                 {
-                    EntityLandVehicle landVehicle = (EntityLandVehicle) this;
-                    if(landVehicle.getRidingEntity() == null && landVehicle.canTowTrailer() && landVehicle.getTrailer() == null)
+                    Entity entity = world.getEntityByID(trailerId);
+                    if(entity instanceof EntityTrailer && entity != this)
                     {
-                        Entity entity = world.getEntityByID(trailerId);
-                        if(entity instanceof EntityTrailer)
-                        {
-                            EntityTrailer trailer = (EntityTrailer) entity;
-                            landVehicle.setTrailer(trailer);
-                            player.getDataManager().set(CommonEvents.TRAILER, -1);
-                        }
+                        EntityTrailer trailer = (EntityTrailer) entity;
+                        this.setTrailer(trailer);
+                        player.getDataManager().set(CommonEvents.TRAILER, -1);
                     }
-                    return true;
                 }
+                return true;
             }
 
             ItemStack heldItem = player.getHeldItem(hand);
-            if(!heldItem.isEmpty() && heldItem.getItem() instanceof ItemSprayCan)
+            if(heldItem.getItem() == ModItems.SPRAY_CAN)
             {
                 if(canBeColored())
                 {
@@ -128,6 +146,45 @@ public abstract class EntityVehicle extends Entity implements IEntityAdditionalS
                         }
                     }
                 }
+            }
+            else if(heldItem.getItem() == ModItems.HAMMER && this.getRidingEntity() instanceof EntityJack)
+            {
+                if(this.getHealth() < this.getMaxHealth())
+                {
+                    heldItem.damageItem(1, player);
+                    this.setHealth(this.getHealth() + 5F);
+                    world.playSound(null, posX, posY, posZ, ModSounds.vehicleThud, SoundCategory.PLAYERS, 1.0F, 0.8F + 0.4F * rand.nextFloat());
+                    player.swingArm(hand);
+                    if(player instanceof EntityPlayerMP)
+                    {
+                        ((EntityPlayerMP) player).connection.sendPacket(new SPacketAnimation(player, hand == EnumHand.MAIN_HAND ? 0 : 3));
+                    }
+                    if(this.getHealth() == this.getMaxHealth())
+                    {
+                        if(world instanceof WorldServer)
+                        {
+                            //TODO send as single packet instead of multiple
+                            int count = (int) (50 * (this.width * this.height));
+                            for(int i = 0; i < count; i++)
+                            {
+                                double width = this.width * 2;
+                                double height = this.height * 1.5;
+
+                                Vec3d heldOffset = this.getProperties().getHeldOffset().rotateYaw((float) Math.toRadians(-this.rotationYaw));
+                                double x = posX + width * rand.nextFloat() - width / 2 + heldOffset.z * 0.0625;
+                                double y = posY + height * rand.nextFloat();
+                                double z = posZ + width * rand.nextFloat() - width / 2 + heldOffset.x * 0.0625;
+
+                                double d0 = rand.nextGaussian() * 0.02D;
+                                double d1 = rand.nextGaussian() * 0.02D;
+                                double d2 = rand.nextGaussian() * 0.02D;
+                                ((WorldServer) world).spawnParticle(EnumParticleTypes.VILLAGER_HAPPY, x, y, z, 1, d0, d1, d2, 1.0);
+                            }
+                        }
+                        world.playSound(null, posX, posY, posZ, SoundEvents.ENTITY_PLAYER_LEVELUP, SoundCategory.PLAYERS, 1.0F, 1.5F);
+                    }
+                }
+                return true;
             }
             else if(this.canBeRidden(player))
             {
@@ -158,12 +215,32 @@ public abstract class EntityVehicle extends Entity implements IEntityAdditionalS
             }
             compound.removeTag("color");
         }
+        if(compound.hasKey("maxHealth", Constants.NBT.TAG_FLOAT))
+        {
+            this.setMaxHealth(compound.getFloat("maxHealth"));
+        }
+        if(compound.hasKey("health", Constants.NBT.TAG_FLOAT))
+        {
+            this.setHealth(compound.getFloat("health"));
+        }
+        if(compound.hasUniqueId("trailer"))
+        {
+            this.trailerId = compound.getUniqueId("trailer");
+        }
     }
 
     @Override
     protected void writeEntityToNBT(NBTTagCompound compound)
     {
         compound.setIntArray("color", this.getColorRGB());
+        compound.setFloat("maxHealth", this.getMaxHealth());
+        compound.setFloat("health", this.getHealth());
+
+        //TODO make it save the entity
+        if(trailerId != null)
+        {
+            compound.setUniqueId("trailer", trailerId);
+        }
     }
 
     @Override
@@ -180,6 +257,29 @@ public abstract class EntityVehicle extends Entity implements IEntityAdditionalS
                 }
                 body.getTagCompound().setInteger("color", this.dataManager.get(COLOR));
             }
+            else if(TRAILER.equals(key))
+            {
+                int entityId = this.dataManager.get(TRAILER);
+                if(entityId != -1)
+                {
+                    Entity entity = world.getEntityByID(this.dataManager.get(TRAILER));
+                    if(entity instanceof EntityTrailer)
+                    {
+                        this.trailer = (EntityTrailer) entity;
+                        this.trailerId = trailer.getUniqueID();
+                    }
+                    else
+                    {
+                        this.trailer = null;
+                        this.trailerId = null;
+                    }
+                }
+                else
+                {
+                    this.trailer = null;
+                    this.trailerId = null;
+                }
+            }
         }
     }
 
@@ -191,18 +291,57 @@ public abstract class EntityVehicle extends Entity implements IEntityAdditionalS
             this.setTimeSinceHit(this.getTimeSinceHit() - 1);
         }
 
-        if(this.getDamageTaken() > 0.0F)
-        {
-            this.setDamageTaken(this.getDamageTaken() - 1.0F);
-        }
-
         prevPosX = posX;
         prevPosY = posY;
         prevPosZ = posZ;
 
+        if(!world.isRemote)
+        {
+            if(this.searchDelay <= 0)
+            {
+                if(trailer != null)
+                {
+                    /* Updates periodically to ensure the client knows the vehicle/trailer connection.
+                     * There is often problems on loading worlds that it doesn't sync correctly, so this
+                     * is the fix. */
+                    this.dataManager.setDirty(TRAILER);
+                    this.trailer.getDataManager().setDirty(EntityTrailer.PULLING_ENTITY);
+                    this.searchDelay = VehicleConfig.SERVER.trailerSyncCooldown;
+                }
+                else
+                {
+                    this.findTrailer();
+                }
+            }
+            else
+            {
+                this.searchDelay--;
+            }
+        }
+
+        if(!this.world.isRemote && trailer != null && (trailer.isDead || trailer.getPullingEntity() != this))
+        {
+            this.setTrailer(null);
+        }
+
         super.onUpdate();
         this.tickLerp();
         this.onUpdateVehicle();
+    }
+
+    private void findTrailer()
+    {
+        if(!world.isRemote && trailerId != null && trailer == null)
+        {
+            WorldServer server = (WorldServer) world;
+            Entity entity = server.getEntityFromUuid(trailerId);
+            if(entity instanceof EntityTrailer)
+            {
+                this.setTrailer((EntityTrailer) entity);
+                return;
+            }
+            trailerId = null;
+        }
     }
 
     protected abstract void onUpdateVehicle();
@@ -223,16 +362,14 @@ public abstract class EntityVehicle extends Entity implements IEntityAdditionalS
             }
             else
             {
-                this.setTimeSinceHit(10);
-                this.setDamageTaken(this.getDamageTaken() + amount * 10.0F);
-
-                boolean isCreativeMode = trueSource instanceof EntityPlayer && ((EntityPlayer) trueSource).capabilities.isCreativeMode;
-                if(isCreativeMode || this.getDamageTaken() > 40.0F)
+                if(VehicleConfig.SERVER.vehicleDamage)
                 {
-                    if(!isCreativeMode && this.world.getGameRules().getBoolean("doEntityDrops"))
-                    {
-                        //this.dropItemWithOffset(this.getItemBoat(), 1, 0.0F);
-                    }
+                    this.setTimeSinceHit(10);
+                    this.setHealth(this.getHealth() - amount);
+                }
+                boolean isCreativeMode = trueSource instanceof EntityPlayer && ((EntityPlayer) trueSource).capabilities.isCreativeMode;
+                if(isCreativeMode || this.getHealth() < 0.0F)
+                {
                     this.onVehicleDestroyed((EntityLivingBase) trueSource);
                     this.setDead();
                 }
@@ -246,7 +383,44 @@ public abstract class EntityVehicle extends Entity implements IEntityAdditionalS
         }
     }
 
-    protected void onVehicleDestroyed(EntityLivingBase entity) {}
+    @Override
+    public void fall(float distance, float damageMultiplier)
+    {
+        if(VehicleConfig.SERVER.vehicleDamage && distance >= 4F && this.motionY < -1.0F)
+        {
+            float damage = distance / 2F;
+            this.attackEntityFrom(DamageSource.FALL, damage);
+            world.playSound(null, posX, posY, posZ, ModSounds.vehicleImpact, SoundCategory.AMBIENT, 1.0F, 1.0F);
+        }
+    }
+
+    protected void onVehicleDestroyed(EntityLivingBase entity)
+    {
+        world.playSound(null, posX, posY, posZ, ModSounds.vehicleDestroyed, SoundCategory.AMBIENT, 1.0F, 0.5F);
+
+        boolean isCreativeMode = entity instanceof EntityPlayer && ((EntityPlayer) entity).capabilities.isCreativeMode;
+        if(!isCreativeMode && this.world.getGameRules().getBoolean("doEntityDrops"))
+        {
+            VehicleRecipes.VehicleRecipe recipe = VehicleRecipes.getRecipe(this.getClass());
+            if(recipe != null)
+            {
+                List<ItemStack> materials = recipe.getMaterials();
+                for(ItemStack stack : materials)
+                {
+                    ItemStack copy = stack.copy();
+                    int shrink = copy.getCount() / 2;
+                    if(shrink > 0)
+                        copy.shrink(rand.nextInt(shrink + 1));
+                    InventoryUtil.spawnItemStack(world, posX, posY, posZ, copy);
+                }
+            }
+        }
+    }
+
+    public int getDestroyedStage()
+    {
+        return 10 - (int) Math.max(1.0F, (int) Math.ceil(10.0F * (this.getHealth() / this.getMaxHealth())));
+    }
 
     /**
      * Smooths the rendering on servers
@@ -305,12 +479,6 @@ public abstract class EntityVehicle extends Entity implements IEntityAdditionalS
         }
     }
 
-    @Override
-    public void updatePassenger(Entity passenger)
-    {
-        super.updatePassenger(passenger);
-    }
-
     protected void applyYawToEntity(Entity entityToUpdate)
     {
         entityToUpdate.setRenderYawOffset(this.rotationYaw);
@@ -326,6 +494,9 @@ public abstract class EntityVehicle extends Entity implements IEntityAdditionalS
     {
         this.applyYawToEntity(entityToUpdate);
     }
+
+    @Override
+    public void addVelocity(double x, double y, double z) {}
 
     /**
      * Sets the time to count down from since the last time entity was hit.
@@ -344,26 +515,42 @@ public abstract class EntityVehicle extends Entity implements IEntityAdditionalS
     }
 
     /**
-     * Sets the damage taken from the last hit.
+     * Sets the max health of the vehicle.
      */
-    public void setDamageTaken(float damageTaken)
+    public void setMaxHealth(float maxHealth)
     {
-        this.dataManager.set(DAMAGE_TAKEN, damageTaken);
+        this.dataManager.set(MAX_HEALTH, maxHealth);
     }
 
     /**
-     * Gets the damage taken from the last hit.
+     * Gets the max health of the vehicle.
      */
-    public float getDamageTaken()
+    public float getMaxHealth()
     {
-        return this.dataManager.get(DAMAGE_TAKEN);
+        return this.dataManager.get(MAX_HEALTH);
     }
 
+    /**
+     * Sets the current health of the vehicle.
+     */
+    public void setHealth(float health)
+    {
+        this.dataManager.set(HEALTH, Math.min(this.getMaxHealth(), health));
+    }
+
+    /**
+     * Gets the current health of the vehicle.
+     */
+    public float getHealth()
+    {
+        return this.dataManager.get(HEALTH);
+    }
+
+    //TODO look into this and why its here. May have to send vanilla event to client
     @SideOnly(Side.CLIENT)
     public void performHurtAnimation()
     {
         this.setTimeSinceHit(10);
-        this.setDamageTaken(this.getDamageTaken() * 11.0F);
     }
 
     public boolean canBeColored()
@@ -396,59 +583,9 @@ public abstract class EntityVehicle extends Entity implements IEntityAdditionalS
         return new int[]{ (color >> 16) & 0xFF, (color >> 8) & 0xFF, color & 0xFF };
     }
 
-    public void setBodyPosition(PartPosition bodyPosition)
-    {
-        this.bodyPosition = bodyPosition;
-    }
-
-    public PartPosition getBodyPosition()
-    {
-        return bodyPosition;
-    }
-
-    public void setHeldOffset(Vec3d heldOffset)
-    {
-        this.heldOffset = heldOffset;
-    }
-
-    public Vec3d getHeldOffset()
-    {
-        return heldOffset;
-    }
-
-    public void setTrailerOffset(Vec3d trailerOffset)
-    {
-        this.trailerOffset = trailerOffset;
-    }
-
-    public Vec3d getTrailerOffset()
-    {
-        return trailerOffset;
-    }
-
     public boolean canMountTrailer()
     {
         return true;
-    }
-
-    public void setAxleOffset(float axleOffset)
-    {
-        this.axleOffset = axleOffset;
-    }
-
-    public float getAxleOffset()
-    {
-        return axleOffset;
-    }
-
-    public void setWheelOffset(float wheelOffset)
-    {
-        this.wheelOffset = wheelOffset;
-    }
-
-    public float getWheelOffset()
-    {
-        return wheelOffset;
     }
 
     /**
@@ -457,17 +594,26 @@ public abstract class EntityVehicle extends Entity implements IEntityAdditionalS
      * @param position the position definition of the part
      * @return a Vec3d containing the exact location
      */
-    protected Vec3d getPartPositionAbsoluteVec(PartPosition position)
+    public Vec3d getPartPositionAbsoluteVec(PartPosition position, float partialTicks)
     {
-        Vec3d partVec = new Vec3d(position.getX() * 0.0625, position.getY() * 0.0625, position.getZ() * 0.0625);
-        partVec = partVec.addVector(0, this.getWheelOffset() * 0.0625, 0);
-        partVec = partVec.addVector(0, this.getAxleOffset() * 0.0625, 0);
+        VehicleProperties properties = this.getProperties();
+        PartPosition bodyPosition = properties.getBodyPosition();
+        Vec3d partVec = Vec3d.ZERO;
+        partVec = partVec.addVector(0, 0.5, 0);
+        partVec = partVec.scale(position.getScale());
+        partVec = partVec.addVector(0, -0.5, 0);
+        partVec = partVec.addVector(position.getX() * 0.0625, position.getY() * 0.0625, position.getZ() * 0.0625);
+        partVec = partVec.addVector(0, properties.getWheelOffset() * 0.0625, 0);
+        partVec = partVec.addVector(0, properties.getAxleOffset() * 0.0625, 0);
         partVec = partVec.addVector(0, 0.5, 0);
         partVec = partVec.scale(bodyPosition.getScale());
         partVec = partVec.addVector(0, -0.5, 0);
+        partVec = partVec.addVector(0, 0.5, 0);
         partVec = partVec.addVector(bodyPosition.getX(), bodyPosition.getY(), bodyPosition.getZ());
-        partVec = partVec.rotateYaw(-this.rotationYaw * 0.017453292F);
-        partVec = partVec.add(this.getPositionVector());
+        partVec = partVec.rotateYaw(-(this.prevRotationYaw + (this.rotationYaw - this.prevRotationYaw) * partialTicks) * 0.017453292F);
+        partVec = partVec.addVector(this.prevPosX + (this.posX - this.prevPosX) * partialTicks, 0, 0);
+        partVec = partVec.addVector(0, this.prevPosY + (this.posY - this.prevPosY) * partialTicks, 0);
+        partVec = partVec.addVector(0, 0, this.prevPosZ + (this.posZ - this.prevPosZ) * partialTicks);
         return partVec;
     }
 
@@ -486,5 +632,60 @@ public abstract class EntityVehicle extends Entity implements IEntityAdditionalS
     public void readSpawnData(ByteBuf buffer)
     {
         rotationYaw = prevRotationYaw = buffer.readFloat();
+    }
+
+    public boolean canTowTrailer()
+    {
+        return false;
+    }
+
+    public void setTrailer(EntityTrailer trailer)
+    {
+        if(trailer != null)
+        {
+            this.trailer = trailer;
+            this.trailerId = trailer.getUniqueID();
+            trailer.setPullingEntity(this);
+            this.dataManager.set(TRAILER, trailer.getEntityId());
+        }
+        else
+        {
+            if(this.trailer != null && this.trailer.getPullingEntity() == this)
+            {
+                this.trailer.setPullingEntity(null);
+            }
+            this.trailer = null;
+            this.trailerId = null;
+            this.dataManager.set(TRAILER, -1);
+        }
+    }
+
+    @Nullable
+    public UUID getTrailerId()
+    {
+        return trailerId;
+    }
+
+    @Nullable
+    public EntityTrailer getTrailer()
+    {
+        return trailer;
+    }
+
+    public VehicleProperties getProperties()
+    {
+        return VehicleProperties.getProperties(this.getClass());
+    }
+
+    public float getModifiedRotationYaw()
+    {
+        return this.rotationYaw;
+    }
+
+    @Override
+    public ItemStack getPickedResult(RayTraceResult target)
+    {
+        ResourceLocation entityId = EntityList.getKey(this);
+        return BlockVehicleCrate.create(entityId, this.getColor(), null, null, -1);
     }
 }

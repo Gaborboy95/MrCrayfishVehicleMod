@@ -1,12 +1,11 @@
 package com.mrcrayfish.vehicle.crafting;
 
-import com.google.common.collect.Maps;
+import com.google.common.collect.ImmutableMap;
 import com.mrcrayfish.vehicle.init.ModFluids;
 import net.minecraft.init.Items;
 import net.minecraft.item.ItemStack;
 
 import javax.annotation.Nullable;
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -21,12 +20,19 @@ public class FluidExtractorRecipes
         return INSTANCE;
     }
 
-    private final HashMap<ItemStack, FluidExtract> extractingMap = Maps.newHashMap();
+    private final ImmutableMap<ItemStack, FluidExtract> extractingMap;
 
     private FluidExtractorRecipes()
     {
-        extractingMap.put(new ItemStack(Items.ENDER_PEARL), new FluidExtract(ModFluids.ENDER_SAP, 100));
-        extractingMap.put(new ItemStack(Items.BLAZE_ROD), new FluidExtract(ModFluids.BLAZE_JUICE, 80));
+        ImmutableMap.Builder<ItemStack, FluidExtract> builder = new ImmutableMap.Builder<>();
+        builder.put(new ItemStack(Items.ENDER_PEARL), new FluidExtract(ModFluids.ENDER_SAP, 500));
+        builder.put(new ItemStack(Items.BLAZE_ROD), new FluidExtract(ModFluids.BLAZE_JUICE, 350));
+        extractingMap = builder.build();
+    }
+
+    public ImmutableMap<ItemStack, FluidExtract> getExtractingMap()
+    {
+        return extractingMap;
     }
 
     @Nullable

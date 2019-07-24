@@ -2,7 +2,7 @@ package com.mrcrayfish.vehicle.entity.vehicle;
 
 import com.mrcrayfish.vehicle.client.EntityRaytracer.IEntityRaytraceable;
 import com.mrcrayfish.vehicle.entity.EngineType;
-import com.mrcrayfish.vehicle.entity.EntitySeaVehicle;
+import com.mrcrayfish.vehicle.entity.EntityBoat;
 import com.mrcrayfish.vehicle.init.ModItems;
 import com.mrcrayfish.vehicle.init.ModSounds;
 import net.minecraft.entity.Entity;
@@ -17,11 +17,8 @@ import net.minecraftforge.fml.relauncher.SideOnly;
 /**
  * Author: MrCrayfish
  */
-public class EntityJetSki extends EntitySeaVehicle implements IEntityRaytraceable
+public class EntityJetSki extends EntityBoat implements IEntityRaytraceable
 {
-    public float prevLeanAngle;
-    public float leanAngle;
-
     /**
      * ItemStack instances used for rendering
      */
@@ -34,8 +31,6 @@ public class EntityJetSki extends EntitySeaVehicle implements IEntityRaytraceabl
         this.setMaxSpeed(15F);
         this.setTurnSensitivity(15);
         this.setSize(1.5F, 1.0F);
-        this.setHeldOffset(new Vec3d(6D, 0D, 0D));
-        this.setTrailerOffset(new Vec3d(0D, -0.09375D, -0.65D));
         this.setFuelConsumption(2.0F);
     }
 
@@ -67,14 +62,6 @@ public class EntityJetSki extends EntitySeaVehicle implements IEntityRaytraceabl
                 }
             }
         }
-    }
-
-    @Override
-    public void updateVehicle()
-    {
-        super.updateVehicle();
-        this.prevLeanAngle = this.leanAngle;
-        this.leanAngle = this.turnAngle / (float) getMaxTurnAngle();
     }
 
     @Override

@@ -1,30 +1,24 @@
 package com.mrcrayfish.vehicle.client.render.vehicle;
 
-import com.mrcrayfish.vehicle.client.render.AbstractRenderLandVehicle;
-import com.mrcrayfish.vehicle.client.render.Wheel;
+import com.mrcrayfish.vehicle.client.render.AbstractRenderVehicle;
 import com.mrcrayfish.vehicle.entity.vehicle.EntityCouch;
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.ModelPlayer;
-import net.minecraft.client.renderer.block.model.ItemCameraTransforms;
+import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.entity.player.EntityPlayer;
 
 /**
  * Author: MrCrayfish
  */
-public class RenderCouch extends AbstractRenderLandVehicle<EntityCouch>
+public class RenderCouch extends AbstractRenderVehicle<EntityCouch>
 {
-    public RenderCouch()
-    {
-        this.addWheel(Wheel.Side.LEFT, Wheel.Position.FRONT, 4.0F, 10.5F, 1.95F);
-        this.addWheel(Wheel.Side.RIGHT, Wheel.Position.FRONT, 4.0F, 10.5F, 1.95F);
-        this.addWheel(Wheel.Side.LEFT, Wheel.Position.REAR, 4.0F, -10.5F, 1.95F);
-        this.addWheel(Wheel.Side.RIGHT, Wheel.Position.REAR, 4.0F, -10.5F, 1.95F);
-    }
-
     @Override
     public void render(EntityCouch entity, float partialTicks)
     {
-        Minecraft.getMinecraft().getRenderItem().renderItem(entity.body, ItemCameraTransforms.TransformType.NONE);
+        GlStateManager.pushMatrix();
+        GlStateManager.translate(0, 0.0625, 0);
+        GlStateManager.rotate(90F, 0, 1, 0);
+        this.renderDamagedPart(entity, entity.body);
+        GlStateManager.popMatrix();
     }
 
     @Override

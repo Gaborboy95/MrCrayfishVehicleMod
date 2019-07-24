@@ -13,15 +13,10 @@ import net.minecraft.entity.player.EntityPlayer;
  */
 public class RenderSportsPlane extends AbstractRenderVehicle<EntitySportsPlane>
 {
-    public RenderSportsPlane()
-    {
-        this.setFuelPortPosition(EntitySportsPlane.FUEL_PORT_POSITION);
-    }
-
     @Override
     public void render(EntitySportsPlane entity, float partialTicks)
     {
-        Minecraft.getMinecraft().getRenderItem().renderItem(entity.body, ItemCameraTransforms.TransformType.NONE);
+        renderDamagedPart(entity, entity.body);
 
         GlStateManager.pushMatrix();
         {
@@ -29,7 +24,7 @@ public class RenderSportsPlane extends AbstractRenderVehicle<EntitySportsPlane>
             GlStateManager.translate(8 * 0.0625, 0, 0);
             GlStateManager.translate(6 * 0.0625, 0, 0);
             GlStateManager.rotate(-5F, 1, 0, 0);
-            Minecraft.getMinecraft().getRenderItem().renderItem(entity.wing, ItemCameraTransforms.TransformType.NONE);
+            renderDamagedPart(entity, entity.wing);
         }
         GlStateManager.popMatrix();
 
@@ -40,7 +35,7 @@ public class RenderSportsPlane extends AbstractRenderVehicle<EntitySportsPlane>
             GlStateManager.translate(8 * 0.0625, 0.0625, 0);
             GlStateManager.translate(6 * 0.0625, 0, 0);
             GlStateManager.rotate(5F, 1, 0, 0);
-            Minecraft.getMinecraft().getRenderItem().renderItem(entity.wing, ItemCameraTransforms.TransformType.NONE);
+            renderDamagedPart(entity, entity.wing);
         }
         GlStateManager.popMatrix();
 
@@ -69,7 +64,7 @@ public class RenderSportsPlane extends AbstractRenderVehicle<EntitySportsPlane>
         GlStateManager.pushMatrix();
         {
             GlStateManager.translate(offsetX, offsetY, offsetZ);
-            Minecraft.getMinecraft().getRenderItem().renderItem(vehicle.wheelCover, ItemCameraTransforms.TransformType.NONE);
+            renderDamagedPart(vehicle, vehicle.wheelCover);
 
             GlStateManager.pushMatrix();
             {
@@ -89,7 +84,7 @@ public class RenderSportsPlane extends AbstractRenderVehicle<EntitySportsPlane>
             GlStateManager.popMatrix();
 
             GlStateManager.rotate(legRotation, 0, 1, 0);
-            Minecraft.getMinecraft().getRenderItem().renderItem(vehicle.leg, ItemCameraTransforms.TransformType.NONE);
+            renderDamagedPart(vehicle, vehicle.leg);
         }
         GlStateManager.popMatrix();
     }
@@ -106,13 +101,12 @@ public class RenderSportsPlane extends AbstractRenderVehicle<EntitySportsPlane>
     @Override
     public void applyPlayerRender(EntitySportsPlane entity, EntityPlayer player, float partialTicks)
     {
-        GlStateManager.translate(0, -8 * 0.0625, 0.5);
-        GlStateManager.translate(0, 0.625, 0);
+        double offsetY = 24 * 0.0625 + entity.getMountedYOffset() + player.getYOffset() - 0.5; //TODO make this last variable a variable in entity plane
+        GlStateManager.translate(0, offsetY, 0);
         float bodyPitch = entity.prevBodyRotationX + (entity.bodyRotationX - entity.prevBodyRotationX) * partialTicks;
         float bodyRoll = entity.prevBodyRotationZ + (entity.bodyRotationZ - entity.prevBodyRotationZ) * partialTicks;
-        GlStateManager.rotate(bodyRoll, 0, 0, 1);
         GlStateManager.rotate(-bodyPitch, 1, 0, 0);
-        GlStateManager.translate(0, -0.625, 0);
-        GlStateManager.translate(0, 8 * 0.0625, -0.5);
+        GlStateManager.rotate(bodyRoll, 0, 0, 1);
+        GlStateManager.translate(0, -offsetY, 0);
     }
 }

@@ -2,8 +2,8 @@ package com.mrcrayfish.vehicle.entity.trailer;
 
 import com.google.common.collect.Maps;
 import com.mrcrayfish.vehicle.client.EntityRaytracer;
+import com.mrcrayfish.vehicle.entity.EntityTrailer;
 import com.mrcrayfish.vehicle.entity.EntityVehicle;
-import com.mrcrayfish.vehicle.entity.vehicle.EntityTrailer;
 import com.mrcrayfish.vehicle.network.PacketHandler;
 import com.mrcrayfish.vehicle.network.message.MessageAttachTrailer;
 import net.minecraft.client.Minecraft;
@@ -27,8 +27,9 @@ import java.util.Map;
  */
 public class EntityVehicleTrailer extends EntityTrailer implements EntityRaytracer.IEntityRaytraceable
 {
-    private static final EntityRaytracer.RayTracePart CONNECTION_BOX = new EntityRaytracer.RayTracePart(createScaledBoundingBox(-7 * 0.0625, 4.3 * 0.0625, 14 * 0.0625, 7 * 0.0625, 6.9 * 0.0625F, 24 * 0.0625, 1.1));
+    private static final EntityRaytracer.RayTracePart CONNECTION_BOX = new EntityRaytracer.RayTracePart(createScaledBoundingBox(-7 * 0.0625, 4.3 * 0.0625, 14 * 0.0625, 7 * 0.0625, 8.5 * 0.0625F, 24 * 0.0625, 1.1));
     private static final Map<EntityRaytracer.RayTracePart, EntityRaytracer.TriangleRayTraceList> interactionBoxMapStatic = Maps.newHashMap();
+
     static
     {
         if(FMLCommonHandler.instance().getSide().isClient())
@@ -40,7 +41,7 @@ public class EntityVehicleTrailer extends EntityTrailer implements EntityRaytrac
     public EntityVehicleTrailer(World worldIn)
     {
         super(worldIn);
-        this.setHeldOffset(new Vec3d(0D, 3D, 0D));
+        this.setSize(1.5F, 1.5F);
     }
 
     @Override
@@ -66,7 +67,7 @@ public class EntityVehicleTrailer extends EntityTrailer implements EntityRaytrac
     {
         if(passenger instanceof EntityVehicle)
         {
-            Vec3d offset = ((EntityVehicle) passenger).getTrailerOffset().rotateYaw((float) Math.toRadians(-this.rotationYaw));
+            Vec3d offset = ((EntityVehicle) passenger).getProperties().getTrailerOffset().rotateYaw((float) Math.toRadians(-this.rotationYaw));
             passenger.setPosition(this.posX + offset.x, this.posY + getMountedYOffset() + offset.y, this.posZ + offset.z);
             passenger.prevRotationYaw = this.prevRotationYaw;
             passenger.rotationYaw = this.rotationYaw;
@@ -88,6 +89,7 @@ public class EntityVehicleTrailer extends EntityTrailer implements EntityRaytrac
 
     @Nullable
     @Override
+    @SideOnly(Side.CLIENT)
     public List<EntityRaytracer.RayTracePart> getApplicableInteractionBoxes()
     {
         return Collections.singletonList(CONNECTION_BOX);
@@ -101,6 +103,7 @@ public class EntityVehicleTrailer extends EntityTrailer implements EntityRaytrac
     }
 
     @Override
+    @SideOnly(Side.CLIENT)
     public boolean processHit(EntityRaytracer.RayTraceResultRotated result, boolean rightClick)
     {
         if(result.getPartHit() == CONNECTION_BOX && rightClick)
@@ -109,5 +112,11 @@ public class EntityVehicleTrailer extends EntityTrailer implements EntityRaytrac
             return true;
         }
         return EntityRaytracer.IEntityRaytraceable.super.processHit(result, rightClick);
+    }
+
+    @Override
+    public double getHitchOffset()
+    {
+        return -25.0;
     }
 }

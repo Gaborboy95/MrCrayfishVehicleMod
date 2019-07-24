@@ -1,88 +1,42 @@
 package com.mrcrayfish.vehicle.client.render.vehicle;
 
-import com.mrcrayfish.vehicle.client.EntityRaytracer;
-import com.mrcrayfish.vehicle.client.render.RenderLandVehicle;
-import com.mrcrayfish.vehicle.client.render.Wheel;
-import com.mrcrayfish.vehicle.entity.EntityJack;
+import com.mrcrayfish.vehicle.client.render.AbstractRenderVehicle;
 import com.mrcrayfish.vehicle.entity.vehicle.EntityMiniBike;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.model.ModelPlayer;
 import net.minecraft.client.renderer.GlStateManager;
-import net.minecraft.client.renderer.RenderHelper;
 import net.minecraft.client.renderer.block.model.ItemCameraTransforms;
-import net.minecraft.client.renderer.entity.RenderManager;
-import net.minecraft.entity.EntityLivingBase;
+import net.minecraft.entity.player.EntityPlayer;
 
 /**
  * Author: MrCrayfish
  */
-public class RenderMiniBike extends RenderLandVehicle<EntityMiniBike>
+public class RenderMiniBike extends AbstractRenderVehicle<EntityMiniBike>
 {
-    public RenderMiniBike(RenderManager renderManager)
-    {
-        super(renderManager);
-        this.setEnginePosition(0, 8.95, 3, 180, 1);
-        this.addWheel(Wheel.Side.NONE, Wheel.Position.REAR, 0.0F, 1.7F, -6.7F, 1.65F);
-    }
-
     @Override
-    public void doRender(EntityMiniBike entity, double x, double y, double z, float currentYaw, float partialTicks)
+    public void render(EntityMiniBike entity, float partialTicks)
     {
-        if(entity.isDead)
-            return;
+        this.renderDamagedPart(entity, entity.body);
 
-        RenderHelper.enableStandardItemLighting();
-
-        float additionalYaw = entity.prevAdditionalYaw + (entity.additionalYaw - entity.prevAdditionalYaw) * partialTicks;
-
-        EntityLivingBase entityLivingBase = (EntityLivingBase) entity.getControllingPassenger();
-        if(entityLivingBase != null)
-        {
-            entityLivingBase.renderYawOffset = currentYaw - additionalYaw;
-            entityLivingBase.prevRenderYawOffset = currentYaw - additionalYaw;
-        }
-
+        //Render the handles bars
         GlStateManager.pushMatrix();
         {
-            if(entity.getRidingEntity() instanceof EntityJack)
-                GlStateManager.translate(0, -1000, 0);
+            GlStateManager.translate(0, 0, 10.5 * 0.0625);
+            GlStateManager.rotate(-22.5F, 1, 0, 0);
 
-            GlStateManager.translate(x, y, z);
-            GlStateManager.rotate(-currentYaw, 0, 1, 0);
-            GlStateManager.rotate(additionalYaw, 0, 1, 0);
-            GlStateManager.scale(1.05, 1.05, 1.05);
-            GlStateManager.translate(0, 0.15, 0.15);
+            float wheelScale = 1.65F;
+            float wheelAngle = entity.prevRenderWheelAngle + (entity.renderWheelAngle - entity.prevRenderWheelAngle) * partialTicks;
+            float wheelAngleNormal = wheelAngle / 45F;
+            float turnRotation = wheelAngleNormal * 25F;
 
-            float currentSpeedNormal = (entity.prevCurrentSpeed + (entity.currentSpeed - entity.prevCurrentSpeed) * partialTicks) / entity.getMaxSpeed();
-            float turnAngleNormal = (entity.prevTurnAngle + (entity.turnAngle - entity.prevTurnAngle) * partialTicks) / 45F;
-            GlStateManager.rotate(turnAngleNormal * currentSpeedNormal * -20F, 0, 0, 1);
+            GlStateManager.rotate(turnRotation, 0, 1, 0);
+            GlStateManager.rotate(22.5F, 1, 0, 0);
+            GlStateManager.translate(0, 0, -10.5 * 0.0625);
 
-            this.setupBreakAnimation(entity, partialTicks);
+            renderDamagedPart(entity, entity.handleBar);
 
-            //Render the body
-            GlStateManager.pushMatrix();
+            if(entity.hasWheels())
             {
-                GlStateManager.translate(0, 0.5, 0);
-                Minecraft.getMinecraft().getRenderItem().renderItem(entity.body, ItemCameraTransforms.TransformType.NONE);
-            }
-            GlStateManager.popMatrix();
-
-            //Render the handles bars
-            GlStateManager.pushMatrix();
-            {
-                GlStateManager.translate(0, 0.5, 10.5 * 0.0625);
-                GlStateManager.rotate(-22.5F, 1, 0, 0);
-
-                float wheelScale = 1.65F;
-                float wheelAngle = entity.prevWheelAngle + (entity.wheelAngle - entity.prevWheelAngle) * partialTicks;
-                float wheelAngleNormal = wheelAngle / 45F;
-                float turnRotation = wheelAngleNormal * 25F;
-
-                GlStateManager.rotate(turnRotation, 0, 1, 0);
-                GlStateManager.rotate(22.5F, 1, 0, 0);
-                GlStateManager.translate(0, 0, -10.5 * 0.0625);
-
-                Minecraft.getMinecraft().getRenderItem().renderItem(entity.handleBar, ItemCameraTransforms.TransformType.NONE);
-
                 GlStateManager.pushMatrix();
                 {
                     GlStateManager.translate(0, -0.5 + 1.7 * 0.0625, 13 * 0.0625);
@@ -97,11 +51,34 @@ public class RenderMiniBike extends RenderLandVehicle<EntityMiniBike>
                 }
                 GlStateManager.popMatrix();
             }
-            GlStateManager.popMatrix();
-
-            super.doRender(entity, x, y, z, currentYaw, partialTicks);
         }
         GlStateManager.popMatrix();
-        EntityRaytracer.renderRaytraceElements(entity, x, y, z, currentYaw);
+    }
+
+    @Override
+    public void applyPlayerModel(EntityMiniBike entity, EntityPlayer player, ModelPlayer model, float partialTicks)
+    {
+        float wheelAngle = entity.prevRenderWheelAngle + (entity.renderWheelAngle - entity.prevRenderWheelAngle) * partialTicks;
+        float wheelAngleNormal = wheelAngle / 45F;
+        float turnRotation = wheelAngleNormal * 8F;
+        model.bipedRightArm.rotateAngleX = (float) Math.toRadians(-55F - turnRotation);
+        model.bipedLeftArm.rotateAngleX = (float) Math.toRadians(-55F + turnRotation);
+        model.bipedRightArm.offsetZ = -0.1F * wheelAngleNormal;
+        model.bipedLeftArm.offsetZ = 0.1F * wheelAngleNormal;
+        model.bipedRightLeg.rotateAngleX = (float) Math.toRadians(-65F);
+        model.bipedRightLeg.rotateAngleY = (float) Math.toRadians(30F);
+        model.bipedLeftLeg.rotateAngleX = (float) Math.toRadians(-65F);
+        model.bipedLeftLeg.rotateAngleY = (float) Math.toRadians(-30F);
+    }
+
+    @Override
+    public void applyPlayerRender(EntityMiniBike entity, EntityPlayer player, float partialTicks)
+    {
+        double offset = 24 * 0.0625 + entity.getMountedYOffset() + player.getYOffset();
+        GlStateManager.translate(0, offset, 0);
+        float currentSpeedNormal = (entity.prevCurrentSpeed + (entity.currentSpeed - entity.prevCurrentSpeed) * partialTicks) / entity.getMaxSpeed();
+        float turnAngleNormal = (entity.prevTurnAngle + (entity.turnAngle - entity.prevTurnAngle) * partialTicks) / 45F;
+        GlStateManager.rotate(turnAngleNormal * currentSpeedNormal * 20F, 0, 0, 1);
+        GlStateManager.translate(0, -offset, 0);
     }
 }

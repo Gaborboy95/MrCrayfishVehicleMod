@@ -1,7 +1,6 @@
 package com.mrcrayfish.vehicle.init;
 
 import com.mrcrayfish.vehicle.Reference;
-
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.SoundEvent;
 
@@ -37,6 +36,14 @@ public class ModSounds
     public static SoundEvent vehicleCratePanelLand;
     public static SoundEvent jackUp;
     public static SoundEvent jackDown;
+    public static SoundEvent vehicleImpact;
+    public static SoundEvent vehicleDestroyed;
+    public static SoundEvent vehicleThud;
+    public static SoundEvent airWrenchGun;
+    public static SoundEvent tractorEngineMono;
+    public static SoundEvent tractorEngineStereo;
+    public static SoundEvent nozzlePickUp;
+    public static SoundEvent nozzlePutDown;
 
     public static void register()
     {
@@ -67,6 +74,14 @@ public class ModSounds
         vehicleCratePanelLand = registerSound("vehicle_crate_panel_land");
         jackUp = registerSound("jack_up");
         jackDown = registerSound("jack_down");
+        vehicleImpact = registerSound("vehicle_impact");
+        vehicleDestroyed = registerSound("vehicle_destroyed");
+        vehicleThud = registerSound("vehicle_thud");
+        airWrenchGun = registerSound("air_wrench_gun");
+        tractorEngineMono = registerSound("tractor_engine_mono");
+        tractorEngineStereo = registerSound("tractor_engine_stereo");
+        nozzlePickUp = registerSound("nozzle_pick_up");
+        nozzlePutDown = registerSound("nozzle_put_down");
     }
 
     private static SoundEvent registerSound(String soundNameIn)

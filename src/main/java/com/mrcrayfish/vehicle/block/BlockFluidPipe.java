@@ -1,7 +1,7 @@
 package com.mrcrayfish.vehicle.block;
 
 import com.mrcrayfish.vehicle.init.ModBlocks;
-import com.mrcrayfish.vehicle.item.ItemWrench;
+import com.mrcrayfish.vehicle.init.ModItems;
 import com.mrcrayfish.vehicle.tileentity.TileEntityFluidPipe;
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
@@ -255,7 +255,7 @@ public class BlockFluidPipe extends BlockObject
     public Pair<AxisAlignedBB, EnumFacing> getWrenchableBox(World world, BlockPos pos, IBlockState state, EntityPlayer player,
             EnumHand hand, EnumFacing facing, double hitX, double hitY, double hitZ, @Nullable TileEntityFluidPipe pipe)
     {
-        if (pipe == null || !(player.getHeldItem(hand).getItem() instanceof ItemWrench))
+        if (pipe == null || !(player.getHeldItem(hand).getItem() == ModItems.WRENCH))
         {
             return null;
         }
@@ -285,7 +285,7 @@ public class BlockFluidPipe extends BlockObject
                 }
                 if (world.getBlockState(pos.offset(facing)).getBlock() != Blocks.LEVER && getCollisionFacing(state) != facing)
                 {
-                    return new ImmutablePair<AxisAlignedBB, EnumFacing>(boxes.get(i).offset(pos), facing);
+                    return new ImmutablePair<>(boxes.get(i).offset(pos), facing);
                 }
             }
         }

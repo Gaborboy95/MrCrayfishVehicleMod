@@ -1,10 +1,13 @@
 package com.mrcrayfish.vehicle.block;
 
+import com.google.common.base.Strings;
 import com.mrcrayfish.vehicle.Reference;
 import com.mrcrayfish.vehicle.VehicleMod;
 import com.mrcrayfish.vehicle.entity.EngineTier;
+import com.mrcrayfish.vehicle.entity.WheelType;
 import com.mrcrayfish.vehicle.init.ModBlocks;
 import com.mrcrayfish.vehicle.init.ModItems;
+import com.mrcrayfish.vehicle.tileentity.TileEntityFuelDrum;
 import com.mrcrayfish.vehicle.tileentity.TileEntityVehicleCrate;
 import com.mrcrayfish.vehicle.util.Bounds;
 import net.minecraft.block.Block;
@@ -20,7 +23,10 @@ import net.minecraft.client.util.ITooltipFlag;
 import net.minecraft.creativetab.CreativeTabs;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityLivingBase;
+import net.minecraft.entity.item.EntityItem;
 import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.init.Items;
+import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
@@ -31,7 +37,6 @@ import net.minecraft.util.text.TextFormatting;
 import net.minecraft.world.IBlockAccess;
 import net.minecraft.world.World;
 import net.minecraftforge.common.util.Constants;
-import net.minecraftforge.fml.common.registry.ForgeRegistries;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 
@@ -39,6 +44,7 @@ import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Random;
 
 /**
  * Author: MrCrayfish
@@ -131,14 +137,14 @@ public class BlockVehicleCrate extends BlockRotatedObject
         if(tileEntity instanceof TileEntityVehicleCrate && canOpen(world, pos))
         {
             if (world.isRemote)
-                spawnCrateOpeningparticles(world, pos, state);
+                spawnCrateOpeningParticles(world, pos, state);
             else
                 ((TileEntityVehicleCrate) tileEntity).open(placer.getUniqueID());
         }
     }
 
     @SideOnly(Side.CLIENT)
-    private void spawnCrateOpeningparticles(World world, BlockPos pos, IBlockState state)
+    private void spawnCrateOpeningParticles(World world, BlockPos pos, IBlockState state)
     {
         double y = 0.875;
         double x, z;
@@ -185,8 +191,11 @@ public class BlockVehicleCrate extends BlockRotatedObject
             {
                 NBTTagCompound blockEntityTag = tagCompound.getCompoundTag("BlockEntityTag");
                 vehicle = blockEntityTag.getString("vehicle");
-                vehicle = I18n.format("entity.vehicle." + vehicle.split(":")[1] + ".name");
-                tooltip.add(TextFormatting.BLUE + vehicle);
+                if(!Strings.isNullOrEmpty(vehicle))
+                {
+                    vehicle = I18n.format("entity.vehicle." + vehicle.split(":")[1] + ".name");
+                    tooltip.add(TextFormatting.BLUE + vehicle);
+                }
             }
         }
 
@@ -209,6 +218,8 @@ public class BlockVehicleCrate extends BlockRotatedObject
         {
             NBTTagCompound blockEntityTag = new NBTTagCompound();
             blockEntityTag.setString("vehicle", resourceLocation.toString());
+            blockEntityTag.setInteger("engineTier", EngineTier.WOOD.ordinal());
+            blockEntityTag.setInteger("wheelType", WheelType.STANDARD.ordinal());
             NBTTagCompound itemTag = new NBTTagCompound();
             itemTag.setTag("BlockEntityTag", blockEntityTag);
             ItemStack stack = new ItemStack(this);
@@ -217,12 +228,26 @@ public class BlockVehicleCrate extends BlockRotatedObject
         });
     }
 
-    public static ItemStack create(ResourceLocation entityId, int color, EngineTier engineTier)
+    public static ItemStack create(ResourceLocation entityId, int color, @Nullable EngineTier engineTier, @Nullable WheelType wheelType, int wheelColor)
     {
         NBTTagCompound blockEntityTag = new NBTTagCompound();
         blockEntityTag.setString("vehicle", entityId.toString());
         blockEntityTag.setInteger("color", color);
-        blockEntityTag.setInteger("engineTier", engineTier.ordinal());
+
+        if(engineTier != null)
+        {
+            blockEntityTag.setInteger("engineTier", engineTier.ordinal());
+        }
+
+        if(wheelType != null)
+        {
+            blockEntityTag.setInteger("wheelType", wheelType.ordinal());
+            if(wheelColor != -1)
+            {
+                blockEntityTag.setInteger("wheelColor", wheelColor);
+            }
+        }
+
         NBTTagCompound itemTag = new NBTTagCompound();
         itemTag.setTag("BlockEntityTag", blockEntityTag);
         ItemStack stack = new ItemStack(ModBlocks.VEHICLE_CRATE);
@@ -237,5 +262,39 @@ public class BlockVehicleCrate extends BlockRotatedObject
         {
             REGISTERED_CRATES.add(resource);
         }
+    }
+
+    @Override
+    public Item getItemDropped(IBlockState state, Random rand, int fortune)
+    {
+        return Items.AIR;
+    }
+
+    @Override
+    public boolean removedByPlayer(IBlockState state, World world, BlockPos pos, EntityPlayer player, boolean willHarvest)
+    {
+        if(!world.isRemote && !player.capabilities.isCreativeMode)
+        {
+            TileEntity tileEntity = world.getTileEntity(pos);
+            if(tileEntity instanceof TileEntityVehicleCrate)
+            {
+                ItemStack drop = new ItemStack(Item.getItemFromBlock(this));
+
+                NBTTagCompound tileEntityTag = new NBTTagCompound();
+                tileEntity.writeToNBT(tileEntityTag);
+                tileEntityTag.removeTag("x");
+                tileEntityTag.removeTag("y");
+                tileEntityTag.removeTag("z");
+                tileEntityTag.removeTag("id");
+
+                NBTTagCompound compound = new NBTTagCompound();
+                compound.setTag("BlockEntityTag", tileEntityTag);
+                drop.setTagCompound(compound);
+
+                world.spawnEntity(new EntityItem(world, pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, drop));
+                return world.setBlockToAir(pos);
+            }
+        }
+        return super.removedByPlayer(state, world, pos, player, willHarvest);
     }
 }

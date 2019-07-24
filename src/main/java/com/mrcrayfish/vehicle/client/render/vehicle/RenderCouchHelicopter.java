@@ -13,22 +13,17 @@ import net.minecraft.entity.player.EntityPlayer;
  */
 public class RenderCouchHelicopter extends AbstractRenderVehicle<EntitySofacopter>
 {
-    public RenderCouchHelicopter()
-    {
-        this.setFuelPortPosition(EntitySofacopter.FUEL_PORT_POSITION);
-    }
-
     @Override
     public void render(EntitySofacopter entity, float partialTicks)
     {
         GlStateManager.pushMatrix();
         GlStateManager.rotate(90F, 0, 1, 0);
-        Minecraft.getMinecraft().getRenderItem().renderItem(entity.body, ItemCameraTransforms.TransformType.NONE);
+        renderDamagedPart(entity, entity.body);
         GlStateManager.popMatrix();
 
         GlStateManager.pushMatrix();
         GlStateManager.translate(0, 8 * 0.0625, 0);
-        Minecraft.getMinecraft().getRenderItem().renderItem(entity.arm, ItemCameraTransforms.TransformType.NONE);
+        renderDamagedPart(entity, entity.arm);
         GlStateManager.popMatrix();
 
         GlStateManager.pushMatrix();

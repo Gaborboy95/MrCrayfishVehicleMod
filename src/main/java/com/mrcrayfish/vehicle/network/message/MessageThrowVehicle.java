@@ -40,7 +40,7 @@ public class MessageThrowVehicle implements IMessage, IMessageHandler<MessageThr
                 {
                     NBTTagCompound tagCompound = player.getDataManager().get(CommonEvents.HELD_VEHICLE);
                     Entity entity = EntityList.createEntityFromNBT(tagCompound, player.world);
-                    if(entity != null && entity instanceof EntityVehicle)
+                    if(entity instanceof EntityVehicle)
                     {
                         //Updates the DataParameter
                         NBTTagCompound tag = new NBTTagCompound();
@@ -55,7 +55,7 @@ public class MessageThrowVehicle implements IMessage, IMessageHandler<MessageThr
 
                         //Sets the positions and spawns the entity
                         float rotation = (player.getRotationYawHead() + 90F) % 360.0F;
-                        Vec3d heldOffset = ((EntityVehicle) entity).getHeldOffset().rotateYaw((float) Math.toRadians(-player.getRotationYawHead()));
+                        Vec3d heldOffset = ((EntityVehicle) entity).getProperties().getHeldOffset().rotateYaw((float) Math.toRadians(-player.getRotationYawHead()));
 
                         //Gets the clicked vec if it was a right click block event
                         Vec3d lookVec = player.getLookVec();
@@ -66,6 +66,7 @@ public class MessageThrowVehicle implements IMessage, IMessageHandler<MessageThr
                         entity.motionX = player.motionX + lookVec.x;
                         entity.motionY = player.motionY + lookVec.y;
                         entity.motionZ = player.motionZ + lookVec.z;
+                        entity.fallDistance = 0.0F;
 
                         player.world.spawnEntity(entity);
                         player.world.playSound(null, player.posX, player.posY, player.posZ, ModSounds.pickUpVehicle, SoundCategory.PLAYERS, 1.0F, 1.0F);

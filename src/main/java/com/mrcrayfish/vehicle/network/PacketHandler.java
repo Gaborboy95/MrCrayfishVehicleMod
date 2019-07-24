@@ -14,19 +14,19 @@ public class PacketHandler
     {
         CLIENT,
         SERVER,
-        BOTH;
+        BOTH
     }
 
     public static void init()
     {
-        registerMessage(MessageTurn.class, Side.SERVER);
+        registerMessage(MessageTurnDirection.class, Side.SERVER);
+        registerMessage(MessageTurnAngle.class, Side.SERVER);
         registerMessage(MessageAccelerating.class, Side.SERVER);
         registerMessage(MessageDrift.class, Side.SERVER);
         registerMessage(MessageHorn.class, Side.SERVER);
         registerMessage(MessageThrowVehicle.class, Side.SERVER);
         registerMessage(MessagePickupVehicle.class, Side.SERVER);
         registerMessage(MessageFlaps.class, Side.SERVER);
-        registerMessage(MessageVehicleChest.class, Side.SERVER);
         registerMessage(MessageAttachChest.class, Side.SERVER);
         registerMessage(MessageAttachTrailer.class, Side.SERVER);
         registerMessage(MessageFuelVehicle.class, Side.SERVER);
@@ -34,6 +34,13 @@ public class PacketHandler
         registerMessage(MessageAltitude.class, Side.SERVER);
         registerMessage(MessageCraftVehicle.class, Side.SERVER);
         registerMessage(MessageVehicleWindow.class, Side.CLIENT);
+        registerMessage(MessageHitchTrailer.class, Side.SERVER);
+        registerMessage(MessageSyncInventory.class, Side.CLIENT);
+        registerMessage(MessageOpenStorage.class, Side.SERVER);
+        registerMessage(MessageStorageWindow.class, Side.CLIENT);
+        registerMessage(MessageTravelProperties.class, Side.SERVER);
+        registerMessage(MessagePower.class, Side.SERVER);
+        registerMessage(MessageEntityFluid.class, Side.CLIENT);
     }
 
     private static void registerMessage(Class packet, Side side)

@@ -2,6 +2,9 @@ package com.mrcrayfish.vehicle.entity;
 
 import com.mrcrayfish.vehicle.VehicleConfig;
 import com.mrcrayfish.vehicle.VehicleMod;
+import com.mrcrayfish.vehicle.block.BlockVehicleCrate;
+import com.mrcrayfish.vehicle.client.render.Wheel;
+import com.mrcrayfish.vehicle.common.CommonEvents;
 import com.mrcrayfish.vehicle.common.container.ContainerVehicle;
 import com.mrcrayfish.vehicle.common.entity.PartPosition;
 import com.mrcrayfish.vehicle.entity.vehicle.EntityBumperCar;
@@ -10,20 +13,25 @@ import com.mrcrayfish.vehicle.init.ModSounds;
 import com.mrcrayfish.vehicle.item.ItemEngine;
 import com.mrcrayfish.vehicle.item.ItemJerryCan;
 import com.mrcrayfish.vehicle.network.PacketHandler;
-import com.mrcrayfish.vehicle.network.message.MessageAccelerating;
-import com.mrcrayfish.vehicle.network.message.MessageHorn;
-import com.mrcrayfish.vehicle.network.message.MessageTurn;
-import com.mrcrayfish.vehicle.network.message.MessageVehicleWindow;
+import com.mrcrayfish.vehicle.network.message.*;
 import com.mrcrayfish.vehicle.proxy.ClientProxy;
+import com.mrcrayfish.vehicle.tileentity.TileEntityGasPump;
+import com.mrcrayfish.vehicle.tileentity.TileEntityGasPumpTank;
 import com.mrcrayfish.vehicle.util.CommonUtils;
+import com.mrcrayfish.vehicle.util.InventoryUtil;
 import net.minecraft.block.Block;
+import net.minecraft.block.BlockGrass;
+import net.minecraft.block.material.Material;
+import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.entity.Entity;
+import net.minecraft.entity.EntityList;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.MoverType;
 import net.minecraft.entity.item.EntityItem;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.EntityPlayerMP;
+import net.minecraft.init.Blocks;
 import net.minecraft.inventory.IInventory;
 import net.minecraft.inventory.IInventoryChangedListener;
 import net.minecraft.inventory.InventoryBasic;
@@ -34,16 +42,15 @@ import net.minecraft.nbt.NBTUtil;
 import net.minecraft.network.datasync.DataParameter;
 import net.minecraft.network.datasync.DataSerializers;
 import net.minecraft.network.datasync.EntityDataManager;
-import net.minecraft.network.play.server.SPacketChat;
-import net.minecraft.util.EnumHand;
-import net.minecraft.util.EnumParticleTypes;
-import net.minecraft.util.SoundEvent;
+import net.minecraft.tileentity.TileEntity;
+import net.minecraft.util.*;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.MathHelper;
+import net.minecraft.util.math.RayTraceResult;
 import net.minecraft.util.math.Vec3d;
-import net.minecraft.util.text.ChatType;
-import net.minecraft.util.text.TextComponentTranslation;
 import net.minecraft.world.World;
 import net.minecraftforge.common.util.Constants;
+import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
 
@@ -60,7 +67,9 @@ public abstract class EntityPoweredVehicle extends EntityVehicle implements IInv
     protected static final DataParameter<Float> CURRENT_SPEED = EntityDataManager.createKey(EntityPoweredVehicle.class, DataSerializers.FLOAT);
     protected static final DataParameter<Float> MAX_SPEED = EntityDataManager.createKey(EntityPoweredVehicle.class, DataSerializers.FLOAT);
     protected static final DataParameter<Float> ACCELERATION_SPEED = EntityDataManager.createKey(EntityPoweredVehicle.class, DataSerializers.FLOAT);
+    protected static final DataParameter<Float> POWER = EntityDataManager.createKey(EntityPoweredVehicle.class, DataSerializers.FLOAT);
     protected static final DataParameter<Integer> TURN_DIRECTION = EntityDataManager.createKey(EntityPoweredVehicle.class, DataSerializers.VARINT);
+    protected static final DataParameter<Float> TARGET_TURN_ANGLE = EntityDataManager.createKey(EntityPoweredVehicle.class, DataSerializers.FLOAT);
     protected static final DataParameter<Integer> TURN_SENSITIVITY = EntityDataManager.createKey(EntityPoweredVehicle.class, DataSerializers.VARINT);
     protected static final DataParameter<Integer> MAX_TURN_ANGLE = EntityDataManager.createKey(EntityPoweredVehicle.class, DataSerializers.VARINT);
     protected static final DataParameter<Integer> ACCELERATION_DIRECTION = EntityDataManager.createKey(EntityPoweredVehicle.class, DataSerializers.VARINT);
@@ -72,6 +81,9 @@ public abstract class EntityPoweredVehicle extends EntityVehicle implements IInv
     protected static final DataParameter<Float> FUEL_CAPACITY = EntityDataManager.createKey(EntityPoweredVehicle.class, DataSerializers.FLOAT);
     protected static final DataParameter<Boolean> NEEDS_KEY = EntityDataManager.createKey(EntityPoweredVehicle.class, DataSerializers.BOOLEAN);
     protected static final DataParameter<ItemStack> KEY_STACK = EntityDataManager.createKey(EntityPoweredVehicle.class, DataSerializers.ITEM_STACK);
+    protected static final DataParameter<Boolean> HAS_WHEELS = EntityDataManager.createKey(EntityPoweredVehicle.class, DataSerializers.BOOLEAN);
+    protected static final DataParameter<Integer> WHEEL_TYPE = EntityDataManager.createKey(EntityPoweredVehicle.class, DataSerializers.VARINT);
+    public  static final DataParameter<Integer> WHEEL_COLOR = EntityDataManager.createKey(EntityPoweredVehicle.class, DataSerializers.VARINT);
 
     public float prevCurrentSpeed;
     public float currentSpeed;
@@ -83,21 +95,27 @@ public abstract class EntityPoweredVehicle extends EntityVehicle implements IInv
     public boolean disableFallDamage;
     public float fuelConsumption = 1F;
 
-    public int turnAngle;
-    public int prevTurnAngle;
+    protected double[] wheelPositions;
+    protected boolean wheelsOnGround = true;
+    public float turnAngle;
+    public float prevTurnAngle;
 
     public float deltaYaw;
     public float wheelAngle;
-    public float prevWheelAngle;
+    public float prevWheelAngle; //TODO can remove use render wheel angle instead
+
+    @SideOnly(Side.CLIENT)
+    public float targetWheelAngle;
+    @SideOnly(Side.CLIENT)
+    public float renderWheelAngle;
+    @SideOnly(Side.CLIENT)
+    public float prevRenderWheelAngle;
 
     public float vehicleMotionX;
     public float vehicleMotionY;
     public float vehicleMotionZ;
 
     private UUID owner;
-    private PartPosition enginePosition;
-    private PartPosition keyHolePosition;
-    private PartPosition keyPosition;
 
     private InventoryBasic vehicleInventory;
 
@@ -141,8 +159,10 @@ public abstract class EntityPoweredVehicle extends EntityVehicle implements IInv
         this.dataManager.register(CURRENT_SPEED, 0F);
         this.dataManager.register(MAX_SPEED, 10F);
         this.dataManager.register(ACCELERATION_SPEED, 0.5F);
+        this.dataManager.register(POWER, 1.0F);
         this.dataManager.register(TURN_DIRECTION, TurnDirection.FORWARD.ordinal());
-        this.dataManager.register(TURN_SENSITIVITY, 10);
+        this.dataManager.register(TARGET_TURN_ANGLE, 0F);
+        this.dataManager.register(TURN_SENSITIVITY, 6);
         this.dataManager.register(MAX_TURN_ANGLE, 45);
         this.dataManager.register(ACCELERATION_DIRECTION, AccelerationDirection.NONE.ordinal());
         this.dataManager.register(HAS_ENGINE, false);
@@ -153,6 +173,15 @@ public abstract class EntityPoweredVehicle extends EntityVehicle implements IInv
         this.dataManager.register(FUEL_CAPACITY, 15000F);
         this.dataManager.register(NEEDS_KEY, false);
         this.dataManager.register(KEY_STACK, ItemStack.EMPTY);
+        this.dataManager.register(HAS_WHEELS, true);
+        this.dataManager.register(WHEEL_TYPE, WheelType.STANDARD.ordinal());
+        this.dataManager.register(WHEEL_COLOR, -1);
+
+        List<Wheel> wheels = this.getProperties().getWheels();
+        if(wheels != null && wheels.size() > 0)
+        {
+            this.wheelPositions = new double[wheels.size() * 3];
+        }
     }
 
     public abstract SoundEvent getMovingSound();
@@ -207,6 +236,7 @@ public abstract class EntityPoweredVehicle extends EntityVehicle implements IInv
     @Override
     public void onClientInit()
     {
+        super.onClientInit();
         engine = new ItemStack(ModItems.SMALL_ENGINE);
         keyPort = new ItemStack(ModItems.KEY_PORT);
         setFuelPort(FuelPort.LID);
@@ -222,6 +252,30 @@ public abstract class EntityPoweredVehicle extends EntityVehicle implements IInv
 
     public void fuelVehicle(EntityPlayer player, EnumHand hand)
     {
+        if(player.getDataManager().get(CommonEvents.GAS_PUMP).isPresent())
+        {
+            BlockPos pos = player.getDataManager().get(CommonEvents.GAS_PUMP).get();
+            TileEntity tileEntity = world.getTileEntity(pos);
+            if(tileEntity instanceof TileEntityGasPump)
+            {
+                tileEntity = world.getTileEntity(pos.down());
+                if(tileEntity instanceof TileEntityGasPumpTank)
+                {
+                    TileEntityGasPumpTank gasPumpTank = (TileEntityGasPumpTank) tileEntity;
+                    FluidStack stack = gasPumpTank.getFluidTank().drain(200, true);
+                    if(stack != null)
+                    {
+                        stack.amount = this.addFuel(stack.amount);
+                        if(stack.amount > 0)
+                        {
+                            gasPumpTank.getFluidTank().fill(stack, true);
+                        }
+                    }
+                }
+            }
+            return;
+        }
+
         ItemStack stack = player.getHeldItem(hand);
         if(!stack.isEmpty() && stack.getItem() instanceof ItemJerryCan)
         {
@@ -294,14 +348,6 @@ public abstract class EntityPoweredVehicle extends EntityVehicle implements IInv
         return super.processInitialInteract(player, hand);
     }
 
-    private static void sendInfoMessage(EntityPlayer player, String message)
-    {
-        if(player instanceof EntityPlayerMP)
-        {
-            ((EntityPlayerMP) player).connection.sendPacket(new SPacketChat(new TextComponentTranslation(message), ChatType.GAME_INFO));
-        }
-    }
-
     @Override
     public void onUpdateVehicle()
     {
@@ -323,6 +369,7 @@ public abstract class EntityPoweredVehicle extends EntityVehicle implements IInv
         }
 
         /* Handle the current speed of the vehicle based on rider's forward movement */
+        this.updateGroundState();
         this.updateSpeed();
         this.updateTurning();
         this.updateVehicle();
@@ -344,6 +391,7 @@ public abstract class EntityPoweredVehicle extends EntityVehicle implements IInv
         {
             this.prevRotationYaw -= 360.0F;
         }
+        this.updateWheelPositions();
 
         this.move(MoverType.SELF, motionX + vehicleMotionX, motionY + vehicleMotionY, motionZ + vehicleMotionZ);
 
@@ -414,7 +462,8 @@ public abstract class EntityPoweredVehicle extends EntityVehicle implements IInv
 
     protected void updateSpeed()
     {
-        currentSpeed = this.getSpeed();
+        float wheelModifier = this.getWheelModifier();
+        this.currentSpeed = this.getSpeed();
 
         EngineTier engineTier = this.getEngineTier();
         AccelerationDirection acceleration = this.getAcceleration();
@@ -424,60 +473,113 @@ public abstract class EntityPoweredVehicle extends EntityVehicle implements IInv
             {
                 if(acceleration == AccelerationDirection.FORWARD)
                 {
-                    this.currentSpeed += this.getModifiedAccelerationSpeed() * engineTier.getAccelerationMultiplier();
-                    if(this.currentSpeed > this.getMaxSpeed() + engineTier.getAdditionalMaxSpeed())
+                    if(this.wheelsOnGround || this.canAccelerateInAir())
                     {
-                        this.currentSpeed = this.getMaxSpeed() + engineTier.getAdditionalMaxSpeed();
+                        float maxSpeed = this.getActualMaxSpeed() * wheelModifier * this.getPower();
+                        if(this.currentSpeed < maxSpeed)
+                        {
+                            this.currentSpeed += this.getModifiedAccelerationSpeed() * engineTier.getAccelerationMultiplier();
+                            if(this.currentSpeed > maxSpeed)
+                            {
+                                this.currentSpeed = maxSpeed;
+                            }
+                        }
+                        if(this.currentSpeed > maxSpeed)
+                        {
+                            this.currentSpeed *= 0.975F;
+                        }
+                        return;
                     }
                 }
                 else if(acceleration == AccelerationDirection.REVERSE)
                 {
-                    this.currentSpeed -= this.getModifiedAccelerationSpeed() * engineTier.getAccelerationMultiplier();
-                    if(this.currentSpeed < -(4.0F + engineTier.getAdditionalMaxSpeed() / 2))
+                    if(this.wheelsOnGround || this.canAccelerateInAir())
                     {
-                        this.currentSpeed = -(4.0F + engineTier.getAdditionalMaxSpeed() / 2);
+                        float maxSpeed = -(4.0F + engineTier.getAdditionalMaxSpeed() / 2) * wheelModifier * this.getPower();;
+                        if(this.currentSpeed > maxSpeed)
+                        {
+                            this.currentSpeed -= this.getModifiedAccelerationSpeed() * engineTier.getAccelerationMultiplier();
+                            if(this.currentSpeed < maxSpeed)
+                            {
+                                this.currentSpeed = maxSpeed;
+                            }
+                        }
+                        if(this.currentSpeed < maxSpeed)
+                        {
+                            this.currentSpeed *= 0.975F;
+                        }
+                        return;
                     }
                 }
-                else
-                {
-                    this.currentSpeed *= 0.9;
-                }
             }
-            else
+
+            if(this.wheelsOnGround || this.canAccelerateInAir())
             {
                 this.currentSpeed *= 0.9;
             }
+            else
+            {
+                this.currentSpeed *= 0.98;
+            }
+        }
+        else if(this.wheelsOnGround)
+        {
+            this.currentSpeed *= 0.85;
         }
         else
         {
-            this.currentSpeed *= 0.5;
+            this.currentSpeed *= 0.98;
         }
     }
 
     protected void updateTurning()
     {
-        TurnDirection direction = this.getTurnDirection();
-        if(this.getControllingPassenger() != null && direction != TurnDirection.FORWARD)
-        {
-            this.turnAngle += direction.dir * getTurnSensitivity();
-            if(Math.abs(this.turnAngle) > getMaxTurnAngle())
-            {
-                this.turnAngle = getMaxTurnAngle() * direction.dir;
-            }
-        }
-        else
-        {
-            this.turnAngle *= 0.75;
-        }
+        this.turnAngle = this.getTargetTurnAngle();
         this.wheelAngle = this.turnAngle * Math.max(0.25F, 1.0F - Math.abs(currentSpeed / 30F));
         this.deltaYaw = this.wheelAngle * (currentSpeed / 30F) / 2F;
+
+        if(world.isRemote)
+        {
+            this.renderWheelAngle = this.wheelAngle;
+        }
     }
 
     public void createParticles()
     {
+        if(this.getAcceleration() == AccelerationDirection.FORWARD)
+        {
+            /* Uses the same logic when rendering wheels to determine the position, then spawns
+             * particles at the contact of the wheel and the ground. */
+            VehicleProperties properties = this.getProperties();
+            if(properties.getWheels() != null)
+            {
+                List<Wheel> wheels = properties.getWheels();
+                for(int i = 0; i < wheels.size(); i++)
+                {
+                    Wheel wheel = wheels.get(i);
+                    if(!wheel.shouldSpawnParticles())
+                        continue;
+                    /* Gets the block under the wheel and spawns a particle */
+                    double wheelX = this.wheelPositions[i * 3];
+                    double wheelY = this.wheelPositions[i * 3 + 1];
+                    double wheelZ = this.wheelPositions[i * 3 + 2];
+                    int x = MathHelper.floor(this.posX + wheelX);
+                    int y = MathHelper.floor(this.posY + wheelY - 0.2D);
+                    int z = MathHelper.floor(this.posZ + wheelZ);
+                    BlockPos pos = new BlockPos(x, y, z);
+                    IBlockState state = this.world.getBlockState(pos);
+                    if(state.getMaterial() != Material.AIR && state.getMaterial().isToolNotRequired())
+                    {
+                        Vec3d dirVec = this.getVectorForRotation(this.rotationPitch, this.getModifiedRotationYaw() + 180F);
+                        this.world.spawnParticle(EnumParticleTypes.BLOCK_CRACK, this.posX + wheelX, this.posY + wheelY, this.posZ + wheelZ, dirVec.x, dirVec.y, dirVec.z, Block.getStateId(state));
+                    }
+                }
+            }
+        }
+
         if(this.shouldShowEngineSmoke()&& this.canDrive() && this.ticksExisted % 2 == 0)
         {
-            Vec3d smokePosition = this.getEngineSmokePosition().rotateYaw(-this.rotationYaw * 0.017453292F);
+            Vec3d smokePosition = this.getEngineSmokePosition().rotateYaw(-this.getModifiedRotationYaw() * 0.017453292F);
             this.world.spawnParticle(EnumParticleTypes.SMOKE_NORMAL, this.posX + smokePosition.x, this.posY + smokePosition.y, this.posZ + smokePosition.z, -this.motionX, 0.0D, -this.motionZ);
         }
     }
@@ -485,34 +587,39 @@ public abstract class EntityPoweredVehicle extends EntityVehicle implements IInv
     @SideOnly(Side.CLIENT)
     public void onClientUpdate()
     {
+        prevRenderWheelAngle = renderWheelAngle;
+
         EntityLivingBase entity = (EntityLivingBase) this.getControllingPassenger();
         if(entity != null && entity.equals(Minecraft.getMinecraft().player))
         {
-            AccelerationDirection acceleration = AccelerationDirection.fromEntity(entity);
+            float power = VehicleMod.proxy.getPower(this);
+            if(power != this.getPower())
+            {
+                this.setPower(power);
+                PacketHandler.INSTANCE.sendToServer(new MessagePower(power));
+            }
+
+            AccelerationDirection acceleration = VehicleMod.proxy.getAccelerationDirection(entity);
             if(this.getAcceleration() != acceleration)
             {
                 this.setAcceleration(acceleration);
                 PacketHandler.INSTANCE.sendToServer(new MessageAccelerating(acceleration));
             }
 
-            boolean horn = ClientProxy.KEY_HORN.isKeyDown();
+            boolean horn = VehicleMod.proxy.isHonking();
             this.setHorn(horn);
             PacketHandler.INSTANCE.sendToServer(new MessageHorn(horn));
 
-            TurnDirection direction = TurnDirection.FORWARD;
-            if(entity.moveStrafing < 0)
-            {
-                direction = TurnDirection.RIGHT;
-            }
-            else if(entity.moveStrafing > 0)
-            {
-                direction = TurnDirection.LEFT;
-            }
+            TurnDirection direction = VehicleMod.proxy.getTurnDirection(entity);
             if(this.getTurnDirection() != direction)
             {
                 this.setTurnDirection(direction);
-                PacketHandler.INSTANCE.sendToServer(new MessageTurn(direction));
+                PacketHandler.INSTANCE.sendToServer(new MessageTurnDirection(direction));
             }
+
+            float targetTurnAngle = VehicleMod.proxy.getTargetTurnAngle(this, false);
+            this.setTargetTurnAngle(targetTurnAngle);
+            PacketHandler.INSTANCE.sendToServer(new MessageTurnAngle(targetTurnAngle));
         }
     }
 
@@ -536,6 +643,18 @@ public abstract class EntityPoweredVehicle extends EntityVehicle implements IInv
         if(compound.hasKey("engineTier", Constants.NBT.TAG_INT))
         {
             this.setEngineTier(EngineTier.getType(compound.getInteger("engineTier")));
+        }
+        if(compound.hasKey("hasWheels", Constants.NBT.TAG_BYTE))
+        {
+            this.setWheels(compound.getBoolean("hasWheels"));
+        }
+        if(compound.hasKey("wheelType", Constants.NBT.TAG_INT))
+        {
+            this.setWheelType(WheelType.getType(compound.getInteger("wheelType")));
+        }
+        if(compound.hasKey("wheelColor", Constants.NBT.TAG_INT))
+        {
+            this.setWheelColor(compound.getInteger("wheelColor"));
         }
         if(compound.hasKey("maxSpeed", Constants.NBT.TAG_FLOAT))
         {
@@ -586,6 +705,9 @@ public abstract class EntityPoweredVehicle extends EntityVehicle implements IInv
         }
         compound.setBoolean("hasEngine", this.hasEngine());
         compound.setInteger("engineTier", this.getEngineTier().ordinal());
+        compound.setBoolean("hasWheels", this.hasWheels());
+        compound.setInteger("wheelType", this.getWheelType().ordinal());
+        compound.setInteger("wheelColor", this.getWheelColor());
         compound.setFloat("maxSpeed", this.getMaxSpeed());
         compound.setFloat("accelerationSpeed", this.getAccelerationSpeed());
         compound.setInteger("turnSensitivity", this.getTurnSensitivity());
@@ -613,9 +735,6 @@ public abstract class EntityPoweredVehicle extends EntityVehicle implements IInv
         passenger.setRotationYawHead(passenger.rotationYaw);
         super.applyYawToEntity(passenger);
     }
-
-    @Override
-    protected void playStepSound(BlockPos pos, Block blockIn) {}
 
     public boolean isMoving()
     {
@@ -687,6 +806,16 @@ public abstract class EntityPoweredVehicle extends EntityVehicle implements IInv
         return TurnDirection.values()[this.dataManager.get(TURN_DIRECTION)];
     }
 
+    public void setTargetTurnAngle(float targetTurnAngle)
+    {
+        this.dataManager.set(TARGET_TURN_ANGLE, targetTurnAngle);
+    }
+
+    public float getTargetTurnAngle()
+    {
+        return this.dataManager.get(TARGET_TURN_ANGLE);
+    }
+
     public void setAcceleration(AccelerationDirection direction)
     {
         this.dataManager.set(ACCELERATION_DIRECTION, direction.ordinal());
@@ -695,6 +824,16 @@ public abstract class EntityPoweredVehicle extends EntityVehicle implements IInv
     public AccelerationDirection getAcceleration()
     {
         return AccelerationDirection.values()[this.dataManager.get(ACCELERATION_DIRECTION)];
+    }
+
+    public void setPower(float power)
+    {
+        this.dataManager.set(POWER, power);
+    }
+
+    public float getPower()
+    {
+        return this.dataManager.get(POWER);
     }
 
     public void setTurnSensitivity(int sensitivity)
@@ -735,6 +874,23 @@ public abstract class EntityPoweredVehicle extends EntityVehicle implements IInv
     public EngineTier getEngineTier()
     {
         return EngineTier.getType(this.dataManager.get(ENGINE_TIER));
+    }
+
+    public ItemStack getEngineStack()
+    {
+        if(this.hasEngine())
+        {
+            switch(this.getEngineType())
+            {
+                case SMALL_MOTOR:
+                    return new ItemStack(ModItems.SMALL_ENGINE, 1, this.getEngineTier().ordinal());
+                case LARGE_MOTOR:
+                    return new ItemStack(ModItems.LARGE_ENGINE, 1, this.getEngineTier().ordinal());
+                case ELECTRIC_MOTOR:
+                    return new ItemStack(ModItems.ELECTRIC_ENGINE, 1, this.getEngineTier().ordinal());
+            }
+        }
+        return ItemStack.EMPTY;
     }
 
     @SideOnly(Side.CLIENT)
@@ -873,7 +1029,7 @@ public abstract class EntityPoweredVehicle extends EntityVehicle implements IInv
     {
         if(!this.getKeyStack().isEmpty())
         {
-            Vec3d keyHole = this.getPartPositionAbsoluteVec(this.getKeyHolePosition());
+            Vec3d keyHole = this.getPartPositionAbsoluteVec(this.getProperties().getKeyPortPosition(), 1F);
             world.spawnEntity(new EntityItem(world, keyHole.x, keyHole.y, keyHole.z, this.getKeyStack()));
             this.setKeyStack(ItemStack.EMPTY);
         }
@@ -884,39 +1040,14 @@ public abstract class EntityPoweredVehicle extends EntityVehicle implements IInv
         return true;
     }
 
+    public boolean isEnginePowered()
+    {
+        return (this.getEngineType() == EngineType.NONE || this.hasEngine() && (this.isControllingPassengerCreative() || this.isFueled()) && this.getDestroyedStage() < 9) && (!this.isKeyNeeded() || !this.getKeyStack().isEmpty());
+    }
+
     public boolean canDrive()
     {
-        if(!this.hasEngine() || !this.isFueled())
-        {
-            return false;
-        }
-        return this.isControllingPassengerCreative() || (!this.isKeyNeeded() || !this.getKeyStack().isEmpty());
-    }
-
-    public void setEnginePosition(PartPosition enginePosition)
-    {
-        this.enginePosition = enginePosition;
-    }
-
-    public PartPosition getEnginePosition()
-    {
-        return enginePosition;
-    }
-
-    public void setKeyHolePosition(PartPosition keyHolePosition)
-    {
-        this.keyHolePosition = keyHolePosition;
-        this.keyPosition = new PartPosition(keyHolePosition.getX(), keyHolePosition.getY(), keyHolePosition.getZ(), keyHolePosition.getRotX() + 90, 0, 0, 0.15);
-    }
-
-    public PartPosition getKeyHolePosition()
-    {
-        return keyHolePosition;
-    }
-
-    public PartPosition getKeyPosition()
-    {
-        return keyPosition;
+        return (!this.canChangeWheels() || this.hasWheels()) && this.isEnginePowered();
     }
 
     public boolean isOwner(EntityPlayer player)
@@ -927,6 +1058,50 @@ public abstract class EntityPoweredVehicle extends EntityVehicle implements IInv
     public void setOwner(UUID owner)
     {
         this.owner = owner;
+    }
+
+    public boolean hasWheels()
+    {
+        return this.dataManager.get(HAS_WHEELS);
+    }
+
+    public void setWheels(boolean hasWheels)
+    {
+        this.dataManager.set(HAS_WHEELS, hasWheels);
+    }
+
+    public void setWheelType(WheelType wheelType)
+    {
+        this.dataManager.set(WHEEL_TYPE, wheelType.ordinal());
+    }
+
+    public WheelType getWheelType()
+    {
+        return WheelType.values()[this.dataManager.get(WHEEL_TYPE)];
+    }
+
+    public ItemStack getWheelStack()
+    {
+        if(this.hasWheels())
+        {
+            ItemStack stack = new ItemStack(ModItems.WHEEL, 1, this.getWheelType().ordinal());
+            if(this.getWheelColor() != -1)
+            {
+                CommonUtils.getItemTagCompound(stack).setInteger("color", this.getWheelColor());
+            }
+            return stack;
+        }
+        return ItemStack.EMPTY;
+    }
+
+    public void setWheelColor(int color)
+    {
+        this.dataManager.set(WHEEL_COLOR, color);
+    }
+
+    public int getWheelColor()
+    {
+        return this.dataManager.get(WHEEL_COLOR);
     }
 
     @Override
@@ -940,6 +1115,11 @@ public abstract class EntityPoweredVehicle extends EntityVehicle implements IInv
                 EngineTier tier = EngineTier.getType(this.dataManager.get(ENGINE_TIER));
                 engine.setItemDamage(tier.ordinal());
             }
+            if(WHEEL_TYPE.equals(key))
+            {
+                WheelType type = this.getWheelType();
+                wheel.setItemDamage(type.ordinal());
+            }
             if(COLOR.equals(key))
             {
                 Color color = new Color(this.dataManager.get(COLOR));
@@ -950,6 +1130,11 @@ public abstract class EntityPoweredVehicle extends EntityVehicle implements IInv
                 CommonUtils.getItemTagCompound(fuelPortBody).setInteger("color", colorInt);
                 CommonUtils.getItemTagCompound(fuelPortLid).setInteger("color", colorInt);
                 CommonUtils.getItemTagCompound(keyPort).setInteger("color", colorInt);
+            }
+            if(WHEEL_COLOR.equals(key))
+            {
+                int color = this.dataManager.get(WHEEL_COLOR);
+                CommonUtils.getItemTagCompound(wheel).setInteger("color", color != -1 ? color : 16383998);
             }
         }
     }
@@ -982,10 +1167,7 @@ public abstract class EntityPoweredVehicle extends EntityVehicle implements IInv
         Entity entity = this.getControllingPassenger();
         if(entity instanceof EntityPlayer)
         {
-            if(((EntityPlayer) entity).isCreative())
-            {
-                return true;
-            }
+            return ((EntityPlayer) entity).isCreative();
         }
         return false;
     }
@@ -1005,50 +1187,27 @@ public abstract class EntityPoweredVehicle extends EntityVehicle implements IInv
 
     public InventoryBasic getVehicleInventory()
     {
-        this.initVehicleInventory();
+        if(this.vehicleInventory == null)
+        {
+            this.initVehicleInventory();
+        }
         return this.vehicleInventory;
     }
 
     protected void initVehicleInventory()
     {
-        InventoryBasic vehicleInventory = this.vehicleInventory;
-        this.vehicleInventory = new InventoryBasic(this.getName(), false, 1);
+        this.vehicleInventory = new InventoryBasic(this.getName(), false, 2);
 
-        if(vehicleInventory != null)
+        ItemStack engine = this.getEngineStack();
+        if(this.getEngineType() != EngineType.NONE & !engine.isEmpty())
         {
-            vehicleInventory.removeInventoryChangeListener(this);
-            int size = Math.min(vehicleInventory.getSizeInventory(), this.vehicleInventory.getSizeInventory());
-            for(int i = 0; i < size; i++)
-            {
-                ItemStack stack = vehicleInventory.getStackInSlot(i);
-                if(!stack.isEmpty())
-                {
-                    this.vehicleInventory.setInventorySlotContents(i, stack.copy());
-                }
-            }
+            this.vehicleInventory.setInventorySlotContents(0, engine);
         }
 
-        if(this.hasEngine())
+        ItemStack wheel = this.getWheelStack();
+        if(this.canChangeWheels() && !wheel.isEmpty())
         {
-            ItemStack engine = ItemStack.EMPTY;
-            switch(this.getEngineType())
-            {
-                case SMALL_MOTOR:
-                    engine = new ItemStack(ModItems.SMALL_ENGINE, 1, this.getEngineTier().ordinal());
-                    break;
-                case LARGE_MOTOR:
-                    engine = new ItemStack(ModItems.LARGE_ENGINE, 1, this.getEngineTier().ordinal());
-                    break;
-                case ELECTRIC_MOTOR:
-                    engine = new ItemStack(ModItems.ELECTRIC_ENGINE, 1, this.getEngineTier().ordinal());
-                    break;
-                default:
-                    break;
-            }
-            if(!engine.isEmpty())
-            {
-                this.vehicleInventory.setInventorySlotContents(0, engine);
-            }
+            this.vehicleInventory.setInventorySlotContents(1, wheel);
         }
 
         this.vehicleInventory.addInventoryChangeListener(this);
@@ -1058,23 +1217,53 @@ public abstract class EntityPoweredVehicle extends EntityVehicle implements IInv
     {
         if (!this.world.isRemote)
         {
-            ItemStack stack = this.vehicleInventory.getStackInSlot(0);
-            if(stack.getItem() instanceof ItemEngine)
+            ItemStack engine = this.vehicleInventory.getStackInSlot(0);
+            if(engine.getItem() instanceof ItemEngine)
             {
-                ItemEngine engine = (ItemEngine) stack.getItem();
-                if(engine.getEngineType() == this.getEngineType())
+                ItemEngine item = (ItemEngine) engine.getItem();
+                if(item.getEngineType() == this.getEngineType())
                 {
                     this.setEngine(true);
-                    this.setEngineTier(EngineTier.getType(stack.getMetadata()));
+                    this.setEngineTier(EngineTier.getType(engine.getMetadata()));
                 }
                 else
                 {
                     this.setEngine(false);
                 }
             }
-            else
+            else if(this.getEngineType() != EngineType.NONE)
             {
                 this.setEngine(false);
+            }
+
+            ItemStack wheel = this.vehicleInventory.getStackInSlot(1);
+            if(this.canChangeWheels())
+            {
+                if(wheel.getItem() == ModItems.WHEEL)
+                {
+                    if(!this.hasWheels())
+                    {
+                        world.playSound(null, getPosition(), ModSounds.airWrenchGun, SoundCategory.BLOCKS, 1.0F, 1.1F);
+                        this.setWheels(true);
+                        this.setWheelType(WheelType.values()[wheel.getMetadata()]);
+
+                        NBTTagCompound tagCompound = CommonUtils.getItemTagCompound(wheel);
+                        if(tagCompound.hasKey("color", Constants.NBT.TAG_INT))
+                        {
+                            this.setWheelColor(tagCompound.getInteger("color"));
+                        }
+                        else
+                        {
+                            this.setWheelColor(-1);
+                        }
+                    }
+                }
+                else
+                {
+                    world.playSound(null, posX, posY, posZ, ModSounds.airWrenchGun, SoundCategory.BLOCKS, 1.0F, 0.8F);
+                    this.setWheels(false);
+                    this.setWheelColor(-1);
+                }
             }
         }
     }
@@ -1083,6 +1272,183 @@ public abstract class EntityPoweredVehicle extends EntityVehicle implements IInv
     public void onInventoryChanged(IInventory inventory)
     {
         this.updateSlots();
+    }
+
+    @Override
+    protected void onVehicleDestroyed(EntityLivingBase entity)
+    {
+        super.onVehicleDestroyed(entity);
+        boolean isCreativeMode = entity instanceof EntityPlayer && ((EntityPlayer) entity).capabilities.isCreativeMode;
+        if(!isCreativeMode && this.world.getGameRules().getBoolean("doEntityDrops"))
+        {
+            // Spawns the engine if the vehicle has one
+            ItemStack engine = this.getEngineStack();
+            if(this.getEngineType() != EngineType.NONE && !engine.isEmpty())
+            {
+                InventoryUtil.spawnItemStack(world, posX, posY, posZ, engine);
+            }
+
+            // Spawns the key and removes the associated vehicle uuid
+            ItemStack key = this.getKeyStack().copy();
+            if(!key.isEmpty())
+            {
+                CommonUtils.getItemTagCompound(key).removeTag("vehicleId");
+                InventoryUtil.spawnItemStack(world, posX, posY, posZ, key);
+            }
+
+            // Spawns wheels if the vehicle has any
+            ItemStack wheel = this.getWheelStack();
+            if(this.canChangeWheels() && !wheel.isEmpty())
+            {
+                InventoryUtil.spawnItemStack(world, posX, posY, posZ, wheel);
+            }
+        }
+    }
+
+    public boolean canChangeWheels()
+    {
+        return true;
+    }
+
+    private void updateWheelPositions()
+    {
+        VehicleProperties properties = this.getProperties();
+        if(properties.getWheels() != null)
+        {
+            List<Wheel> wheels = properties.getWheels();
+            for(int i = 0; i < wheels.size(); i++)
+            {
+                Wheel wheel = wheels.get(i);
+
+                PartPosition bodyPosition = properties.getBodyPosition();
+                double wheelX = bodyPosition.getX();
+                double wheelY = bodyPosition.getY();
+                double wheelZ = bodyPosition.getZ();
+
+                double scale = bodyPosition.getScale();
+
+                /* Applies axel and wheel offets */
+                wheelY += (properties.getWheelOffset() * 0.0625F) * scale;
+
+                /* Wheels Translations */
+                wheelX += ((wheel.getOffsetX() * 0.0625) * wheel.getSide().getOffset()) * scale;
+                wheelY += (wheel.getOffsetY() * 0.0625) * scale;
+                wheelZ += (wheel.getOffsetZ() * 0.0625) * scale;
+                wheelX += ((((wheel.getWidth() * wheel.getScaleX()) / 2) * 0.0625) * wheel.getSide().getOffset()) * scale;
+
+                /* Offsets the position to the wheel contact on the ground */
+                wheelY -= ((5 * 0.0625) / 2.0) * wheel.getScaleY();
+
+                /* Update the wheel position */
+                Vec3d wheelVec = new Vec3d(wheelX, wheelY, wheelZ).rotateYaw(-this.getModifiedRotationYaw() * 0.017453292F);
+                wheelPositions[i * 3] = wheelVec.x;
+                wheelPositions[i * 3 + 1] = wheelVec.y;
+                wheelPositions[i * 3 + 2] = wheelVec.z;
+            }
+        }
+    }
+
+    public float getWheelModifier()
+    {
+        float wheelModifier = 0F;
+        VehicleProperties properties = this.getProperties();
+        List<Wheel> wheels = properties.getWheels();
+        if(this.hasWheels() && wheels != null)
+        {
+            int wheelCount = 0;
+            WheelType type = this.getWheelType();
+            for(int i = 0; i < wheels.size(); i++)
+            {
+                double wheelX = this.wheelPositions[i * 3];
+                double wheelY = this.wheelPositions[i * 3 + 1];
+                double wheelZ = this.wheelPositions[i * 3 + 2];
+                int x = MathHelper.floor(this.posX + wheelX);
+                int y = MathHelper.floor(this.posY + wheelY - 0.2D);
+                int z = MathHelper.floor(this.posZ + wheelZ);
+                BlockPos pos = new BlockPos(x, y, z);
+                IBlockState state = this.world.getBlockState(pos);
+                if(state.getMaterial() != Material.AIR)
+                {
+                    if(state.getMaterial() == Material.SNOW || state.getMaterial() == Material.CRAFTED_SNOW || (state.getBlock() == Blocks.GRASS && state.getValue(BlockGrass.SNOWY)))
+                    {
+                        wheelModifier += (1.0F - type.snowMultiplier);
+                    }
+                    else if(!state.getMaterial().isToolNotRequired())
+                    {
+                        wheelModifier += (1.0F - type.roadMultiplier);
+                    }
+                    else
+                    {
+                        wheelModifier += (1.0F - type.dirtMultiplier);
+                    }
+                    wheelCount++;
+                }
+            }
+            if(wheelCount > 0)
+            {
+                wheelModifier /= (float) wheelCount;
+            }
+        }
+        return 1.0F - wheelModifier;
+    }
+
+    protected void updateGroundState()
+    {
+        if(this.hasWheels())
+        {
+            VehicleProperties properties = this.getProperties();
+            List<Wheel> wheels = properties.getWheels();
+            if(this.hasWheels() && wheels != null)
+            {
+                for(int i = 0; i < wheels.size(); i++)
+                {
+                    double wheelX = this.wheelPositions[i * 3];
+                    double wheelY = this.wheelPositions[i * 3 + 1];
+                    double wheelZ = this.wheelPositions[i * 3 + 2];
+                    int x = MathHelper.floor(this.posX + wheelX);
+                    int y = MathHelper.floor(this.posY + wheelY - 0.2D);
+                    int z = MathHelper.floor(this.posZ + wheelZ);
+                    BlockPos pos = new BlockPos(x, y, z);
+                    IBlockState state = this.world.getBlockState(pos);
+                    if(state.getCollisionBoundingBox(world, pos) != Block.NULL_AABB)
+                    {
+                        wheelsOnGround = true;
+                        return;
+                    }
+                }
+            }
+            wheelsOnGround = false;
+        }
+    }
+
+    protected boolean canAccelerateInAir()
+    {
+        return false;
+    }
+
+    @Override
+    public ItemStack getPickedResult(RayTraceResult target)
+    {
+        EngineTier engineTier = null;
+        if(this.hasEngine())
+        {
+            engineTier = this.getEngineTier();
+        }
+
+        int wheelColor = -1;
+        WheelType wheelType = null;
+        if(this.hasWheels())
+        {
+            wheelType = this.getWheelType();
+            wheelColor = this.getWheelColor();
+        }
+
+        ResourceLocation entityId = EntityList.getKey(this);
+        if(entityId != null)
+        {
+            return BlockVehicleCrate.create(entityId, this.getColor(), engineTier, wheelType, wheelColor);
+        }
+        return ItemStack.EMPTY;
     }
 
     public enum TurnDirection

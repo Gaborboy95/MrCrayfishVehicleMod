@@ -7,7 +7,6 @@ import com.mrcrayfish.vehicle.init.ModItems;
 import com.mrcrayfish.vehicle.init.ModSounds;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.SoundEvent;
-import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
@@ -29,10 +28,7 @@ public class EntitySmartCar extends EntityLandVehicle implements IEntityRaytrace
         this.setMaxSpeed(15F);
         this.setTurnSensitivity(12);
         this.setSize(1.85F, 1.15F);
-        this.setHeldOffset(new Vec3d(3D, 1D, 0D));
-        this.setTowBarPosition(new Vec3d(0D, 0D, -1.35D));
         this.stepHeight = 1F;
-        //TODO figure out electric vehicles
     }
 
     @Override

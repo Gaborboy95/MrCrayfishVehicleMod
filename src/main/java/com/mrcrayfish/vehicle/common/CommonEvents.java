@@ -1,16 +1,21 @@
 package com.mrcrayfish.vehicle.common;
 
+import com.google.common.base.Optional;
 import com.google.common.collect.ImmutableList;
 import com.mrcrayfish.vehicle.Reference;
+import com.mrcrayfish.vehicle.VehicleConfig;
 import com.mrcrayfish.vehicle.common.entity.HeldVehicleDataHandler;
 import com.mrcrayfish.vehicle.entity.EntityJack;
 import com.mrcrayfish.vehicle.entity.EntityPoweredVehicle;
+import com.mrcrayfish.vehicle.entity.EntityTrailer;
 import com.mrcrayfish.vehicle.entity.EntityVehicle;
-import com.mrcrayfish.vehicle.entity.vehicle.EntityTrailer;
+import com.mrcrayfish.vehicle.init.ModBlocks;
 import com.mrcrayfish.vehicle.init.ModSounds;
 import com.mrcrayfish.vehicle.network.PacketHandler;
 import com.mrcrayfish.vehicle.network.message.MessageThrowVehicle;
+import com.mrcrayfish.vehicle.tileentity.TileEntityGasPump;
 import com.mrcrayfish.vehicle.tileentity.TileEntityJack;
+import net.minecraft.block.state.IBlockState;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityList;
 import net.minecraft.entity.player.EntityPlayer;
@@ -46,6 +51,7 @@ public class CommonEvents
     public static final DataParameter<Boolean> PUSHING_CART = EntityDataManager.createKey(EntityPlayer.class, DataSerializers.BOOLEAN);
     public static final DataParameter<NBTTagCompound> HELD_VEHICLE = EntityDataManager.createKey(EntityPlayer.class, DataSerializers.COMPOUND_TAG);
     public static final DataParameter<Integer> TRAILER = EntityDataManager.createKey(EntityPlayer.class, DataSerializers.VARINT);
+    public static final DataParameter<Optional<BlockPos>> GAS_PUMP = EntityDataManager.createKey(EntityPlayer.class, DataSerializers.OPTIONAL_BLOCK_POS);
 
     private static final List<String> IGNORE_ITEMS;
     private static final List<String> IGNORE_SOUNDS;
@@ -115,6 +121,7 @@ public class CommonEvents
             event.getEntity().getDataManager().register(PUSHING_CART, false);
             event.getEntity().getDataManager().register(HELD_VEHICLE, new NBTTagCompound());
             event.getEntity().getDataManager().register(TRAILER, -1);
+            event.getEntity().getDataManager().register(GAS_PUMP, Optional.absent());
         }
     }
 
@@ -129,7 +136,7 @@ public class CommonEvents
 
     public static boolean pickUpVehicle(World world, EntityPlayer player, EnumHand hand, Entity targetEntity)
     {
-        if(hand == EnumHand.MAIN_HAND && !world.isRemote && player.isSneaking() && !player.isSpectator())
+        if(hand == EnumHand.MAIN_HAND && !world.isRemote && player.isSneaking() && !player.isSpectator() && VehicleConfig.SERVER.pickUpVehicles)
         {
             if(player.getDataManager().get(HELD_VEHICLE).hasNoTags())
             {
@@ -139,6 +146,8 @@ public class CommonEvents
                     String id = getEntityString(targetEntity);
                     if(id != null)
                     {
+                        ((EntityVehicle) targetEntity).setTrailer(null);
+
                         tagCompound.setString("id", id);
                         targetEntity.writeToNBT(tagCompound);
                         player.getDataManager().set(HELD_VEHICLE, tagCompound);
@@ -213,7 +222,7 @@ public class CommonEvents
                         {
                             NBTTagCompound tagCompound = player.getDataManager().get(HELD_VEHICLE);
                             Entity entity = EntityList.createEntityFromNBT(tagCompound, world);
-                            if(entity != null && entity instanceof EntityVehicle)
+                            if(entity instanceof EntityVehicle)
                             {
                                 NBTTagCompound tag = new NBTTagCompound();
                                 player.getDataManager().set(HELD_VEHICLE, tag);
@@ -225,7 +234,9 @@ public class CommonEvents
                                     heldVehicle.setVehicleTag(tag);
                                 }
 
+                                entity.fallDistance = 0.0F;
                                 entity.rotationYaw = (player.getRotationYawHead() + 90F) % 360.0F;
+
                                 jack.setVehicle((EntityVehicle) entity);
                                 if(jack.getJack() != null)
                                 {
@@ -256,7 +267,7 @@ public class CommonEvents
 
                     NBTTagCompound tagCompound = player.getDataManager().get(HELD_VEHICLE);
                     Entity entity = EntityList.createEntityFromNBT(tagCompound, world);
-                    if(entity != null && entity instanceof EntityVehicle)
+                    if(entity instanceof EntityVehicle)
                     {
                         MinecraftServer server = world.getMinecraftServer();
                         if(server != null && server.getEntityFromUuid(entity.getUniqueID()) == null)
@@ -276,9 +287,10 @@ public class CommonEvents
 
                                 //Sets the positions and spawns the entity
                                 float rotation = (player.getRotationYawHead() + 90F) % 360.0F;
-                                Vec3d heldOffset = ((EntityVehicle) entity).getHeldOffset().rotateYaw((float) Math.toRadians(-player.getRotationYawHead()));
+                                Vec3d heldOffset = ((EntityVehicle) entity).getProperties().getHeldOffset().rotateYaw((float) Math.toRadians(-player.getRotationYawHead()));
 
                                 entity.setPositionAndRotation(clickedVec.x + heldOffset.x * 0.0625D, clickedVec.y, clickedVec.z + heldOffset.z * 0.0625D, rotation, 0F);
+                                entity.fallDistance = 0.0F;
 
                                 //Plays place sound
                                 world.spawnEntity(entity);
@@ -368,7 +380,7 @@ public class CommonEvents
             if(vehicle != null && vehicle instanceof EntityPoweredVehicle)
             {
                 float rotation = (player.getRotationYawHead() + 90F) % 360.0F;
-                Vec3d heldOffset = ((EntityPoweredVehicle) vehicle).getHeldOffset().rotateYaw((float) Math.toRadians(-player.getRotationYawHead()));
+                Vec3d heldOffset = ((EntityPoweredVehicle) vehicle).getProperties().getHeldOffset().rotateYaw((float) Math.toRadians(-player.getRotationYawHead()));
                 vehicle.setPositionAndRotation(player.posX + heldOffset.x * 0.0625D, player.posY + player.getEyeHeight() + heldOffset.y * 0.0625D, player.posZ + heldOffset.z * 0.0625D, rotation, 0F);
                 player.world.spawnEntity(vehicle);
             }
@@ -399,6 +411,25 @@ public class CommonEvents
             {
                 this.dropVehicle(player);
             }
+        }
+    }
+
+    @SubscribeEvent
+    public void onRightClick(PlayerInteractEvent.RightClickItem event)
+    {
+        if(event.getEntityPlayer().getDataManager().get(GAS_PUMP).isPresent())
+        {
+            event.setCanceled(true);
+        }
+    }
+
+    @SubscribeEvent
+    public void onRightClick(PlayerInteractEvent.RightClickBlock event)
+    {
+        IBlockState state = event.getWorld().getBlockState(event.getPos());
+        if(state.getBlock() != ModBlocks.GAS_PUMP && event.getEntityPlayer().getDataManager().get(GAS_PUMP).isPresent())
+        {
+            event.setCanceled(true);
         }
     }
 }

@@ -14,7 +14,13 @@ import net.minecraftforge.client.model.ModelLoader;
  */
 public enum Models
 {
-    VEHICLE_CRATE("vehicle_crate_panel");
+    VEHICLE_CRATE("vehicle_crate_panel"),
+    CHEST_TRAILER("trailer_chest_body"),
+    SEEDER_TRAILER("trailer_seeder_body"),
+    SEED_SPIKER("seed_spiker"),
+    FERTILIZER_TRAILER("trailer_fertilizer_body"),
+    FLUID_TRAILER("trailer_fluid_body"),
+    NOZZLE("nozzle");
 
     /**
      * An arbitrary item in your mod to register isolated models as variants of
