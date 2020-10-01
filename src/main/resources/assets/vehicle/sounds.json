@@ -103,5 +103,17 @@
     },
     "nozzle_put_down": {
         "sounds": [ {"name": "vehicle:nozzle_put_down"}]
+    },
+    "mini_bus_engine_mono": {
+        "sounds": [ {"name": "vehicle:mini_bus_engine_mono"}]
+    },
+    "mini_bus_engine_stereo": {
+        "sounds": [ {"name": "vehicle:mini_bus_engine_stereo"}]
+    },
+    "dirt_bike_engine_mono": {
+        "sounds": [ {"name": "vehicle:dirt_bike_engine_mono"}]
+    },
+    "dirt_bike_engine_stereo": {
+        "sounds": [ {"name": "vehicle:dirt_bike_engine_stereo"}]
     }
 }
